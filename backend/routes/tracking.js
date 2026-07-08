@@ -13,6 +13,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.post('/assign', protect, authorize('ngo'), assignVolunteer);
 router.put('/status', protect, authorize('volunteer'), updateStatus);
 router.put('/location', protect, authorize('volunteer'), updateLocation);
+router.get('/tasks', protect, authorize('volunteer'), getVolunteerTasks);
 router.get('/:donationId', protect, getTrackingInfo);
 
 module.exports = router;
