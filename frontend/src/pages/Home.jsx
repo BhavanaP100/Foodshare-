@@ -482,10 +482,42 @@ const navigate = useNavigate();
         {/* Nav Links */}
         <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
 <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-  <Link to="/">Home</Link>
-  <Link to="/">About</Link>
-  <Link to="/">How It Works</Link>
-  <Link to="/login">Dashboard</Link>
+  <button
+  className="nav-link"
+  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+>
+  Home
+</button>
+
+<button
+  className="nav-link"
+  onClick={() =>
+    document
+      .getElementById("about")
+      ?.scrollIntoView({ behavior: "smooth" })
+  }
+>
+  About
+</button>
+
+<button
+  className="nav-link"
+  onClick={() =>
+    document
+      .getElementById("how-it-works")
+      ?.scrollIntoView({ behavior: "smooth" })
+  }
+>
+  How It Works
+</button>
+
+<Link className="nav-link" to="/impact">
+  Impact
+</Link>
+
+<Link className="nav-link" to="/login">
+  Login
+</Link>
 </div>
         </div>
 
@@ -512,7 +544,7 @@ const navigate = useNavigate();
             className="glow-btn"
             whileHover={{ scale: 1.07 }}
             whileTap={{ scale: 0.96 }}
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/register")}
           >
             Get Started
           </motion.button>
@@ -588,13 +620,22 @@ const navigate = useNavigate();
                 style={{ fontSize: "0.95rem", padding: "12px 28px", borderRadius: 10 }}
                 whileHover={{ scale: 1.07 }}
                 whileTap={{ scale: 0.95 }}
+                 onClick={() => navigate("/register")}
               >
                 Get Started →
               </motion.button>
-              <button className="outline-btn" style={{ fontSize: "0.95rem" }}>
-                <span style={{ fontSize: 18 }}>▶</span> Watch Demo
-                  onClick={() => navigate("/impact")}
-              </button>
+              <button
+ className="outline-btn"
+ style={{ fontSize: "0.95rem" }}
+ onClick={() =>
+   document
+     .getElementById("how-it-works")
+     ?.scrollIntoView({ behavior: "smooth" })
+ }
+>
+ <span style={{ fontSize: 18 }}>▶</span>
+ Watch Demo
+</button>
             </motion.div>
 
             {/* Social proof */}
@@ -775,7 +816,10 @@ const navigate = useNavigate();
       <div style={{ background: "#f5f9f7", color: "#0d1f18" }}>
 
         {/* WHY DONATE FOOD */}
-        <section style={{ padding: "90px 5%" }}>
+        <section
+ id="about"
+ style={{ padding: "90px 5%" }}
+>
           <div style={{ maxWidth: 1200, margin: "0 auto" }}>
             <ScrollReveal>
               <div style={{ textAlign: "center", marginBottom: 56 }}>
@@ -810,7 +854,7 @@ const navigate = useNavigate();
         </section>
 
         {/* HOW IT WORKS */}
-        <section style={{ padding: "80px 5%", background: "#eef5f1" }}>
+        <section  id="how-it-works" style={{ padding: "80px 5%", background: "#eef5f1" }}>
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             <ScrollReveal>
               <div style={{ textAlign: "center", marginBottom: 60 }}>
@@ -903,10 +947,18 @@ const navigate = useNavigate();
               © 2026 FoodShare Nexus. Built to feed communities.
             </div>
             <div style={{ display: "flex", gap: 20 }}>
-              {["Privacy", "Terms", "Contact"].map((l) => (
-                <a key={l} href="#" style={{ color: "rgba(200,230,220,0.4)", fontSize: "0.78rem", textDecoration: "none" }}>{l}</a>
-              ))}
-            </div>
+  {["Privacy", "Terms", "Contact"].map((l) => (
+    <span
+      key={l}
+      style={{
+        color: "rgba(200,230,220,0.4)",
+        fontSize: "0.78rem"
+      }}
+    >
+      {l}
+    </span>
+  ))}
+</div>
           </div>
         </footer>
       </div>
