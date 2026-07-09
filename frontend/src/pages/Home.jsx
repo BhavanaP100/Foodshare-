@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useAnimation, useInView, AnimatePresence } from "framer-motion";
-
+import { Link, useNavigate } from "react-router-dom";
 // ─── Floating Particle Background ──────────────────────────────────────────
 function ParticleField() {
   const particles = Array.from({ length: 28 }, (_, i) => ({
@@ -296,7 +296,7 @@ function AnimatedCounter({ target, suffix = "+" }) {
 export default function Home() {
   const [lateNightMode, setLateNightMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
+const navigate = useNavigate();
   const lnBg = lateNightMode ? "#0a0d12" : undefined;
 
   return (
@@ -481,11 +481,12 @@ export default function Home() {
 
         {/* Nav Links */}
         <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-          {["Home", "About", "How It Works", "Dashboard"].map((link) => (
-            <a key={link} href="#" className="nav-link">
-              {link}
-            </a>
-          ))}
+<div style={{ display: "flex", gap: 32, alignItems: "center" }}>
+  <Link to="/">Home</Link>
+  <Link to="/">About</Link>
+  <Link to="/">How It Works</Link>
+  <Link to="/login">Dashboard</Link>
+</div>
         </div>
 
         {/* Right side */}
@@ -511,6 +512,7 @@ export default function Home() {
             className="glow-btn"
             whileHover={{ scale: 1.07 }}
             whileTap={{ scale: 0.96 }}
+              onClick={() => navigate("/login")}
           >
             Get Started
           </motion.button>
@@ -542,6 +544,7 @@ export default function Home() {
           {/* Left copy */}
           <div style={{ flex: "1 1 440px", maxWidth: 560 }}>
             <motion.div
+             onClick={() => navigate("/register")}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
@@ -590,6 +593,7 @@ export default function Home() {
               </motion.button>
               <button className="outline-btn" style={{ fontSize: "0.95rem" }}>
                 <span style={{ fontSize: 18 }}>▶</span> Watch Demo
+                  onClick={() => navigate("/impact")}
               </button>
             </motion.div>
 
@@ -696,7 +700,15 @@ export default function Home() {
                   <div style={{ color: "rgba(220,240,235,0.65)", fontSize: "0.88rem", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>{card.desc}</div>
 
                   <motion.button
+                   onClick={() => {
+    if (card.title === "Find Resources") {
+      navigate("/impact");
+    } else {
+      navigate("/register");
+    }
+  }}
                     style={{
+                      
                       marginTop: "auto",
                       alignSelf: "flex-start",
                       background: "transparent",
