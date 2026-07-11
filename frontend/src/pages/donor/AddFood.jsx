@@ -40,17 +40,29 @@ export default function AddFood() {
   const freshnessBadge = freshnessScore >= 75 ? 'Fresh' : freshnessScore >= 50 ? 'Good' : freshnessScore >= 25 ? 'Use Soon' : 'Critical';
 
   const handleImages = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files).slice(0,5);
     setImages(files);
     setPreviews(files.map((f) => URL.createObjectURL(f)));
   };
 
-  const getLocation = () => {
-    navigator.geolocation?.getCurrentPosition(({ coords }) => {
-      setForm({ ...form, location: { lat: coords.latitude.toFixed(6), lng: coords.longitude.toFixed(6) } });
-    });
-  };
-
+ const getLocation = () => {
+  navigator.geolocation?.getCurrentPosition(
+    ({ coords }) => {
+      setForm({
+        ...form,
+        location: {
+          lat: coords.latitude.toFixed(6),
+          lng: coords.longitude.toFixed(6),
+        },
+      });
+    },
+    () => {
+      setError(
+        "Location access denied. Please enable location or enter coordinates manually."
+      );
+    }
+  );
+};
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');

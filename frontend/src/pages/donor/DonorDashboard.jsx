@@ -15,7 +15,9 @@ export default function DonorDashboard() {
   useEffect(() => {
     api.get('/donations/my')
       .then(({ data }) => { if (data.success) setDonations(data.donations); })
-      .catch(() => {})
+      .catch((err) => {
+        console.log("Failed to fetch donation",err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
