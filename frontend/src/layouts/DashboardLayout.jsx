@@ -18,7 +18,7 @@ const NAV_BY_ROLE = {
     { label: 'Dashboard', icon: FiGrid, path: '/ngo' },
     { label: 'Available Food', icon: FiPackage, path: '/ngo/donations' },
     { label: 'Impact', icon: FiBarChart2, path: '/impact' },
-    { label: 'Late Night', icon: FiMoon, path: '/late-night' },
+   
   ],
   volunteer: [
     { label: 'Dashboard', icon: FiGrid, path: '/volunteer' },
@@ -37,7 +37,8 @@ export default function DashboardLayout({ children, title }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [notifs] = useState(3);
+  const [notifs] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const nav = NAV_BY_ROLE[user?.role] || [];
 
@@ -115,7 +116,7 @@ export default function DashboardLayout({ children, title }) {
 
             {/* Bottom actions */}
             <div className="px-3 pb-6 space-y-1 border-t border-green-50 pt-3 mt-2">
-              <Link to="/" className="sidebar-link">
+              <Link to="/settings" className="sidebar-link">
                 <FiSettings size={17} /> Settings
               </Link>
               <button
@@ -144,12 +145,40 @@ export default function DashboardLayout({ children, title }) {
             <h1 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: '1.15rem', color: '#14532d' }}>{title}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors">
-              <FiBell size={19} />
-              {notifs > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#22c55e', fontSize: 10 }}>{notifs}</span>
-              )}
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen((o) => !o)}
+                className="relative p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
+              >
+                <FiBell size={19} />
+                {notifs > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full text-white text-xs flex items-center justify-center" style={{ background: '#22c55e', fontSize: 10 }}>{notifs}</span>
+                )}
+              </button>
+              <AnimatePresence>
+                {notifOpen && (
+                  <>
+                    {/* Click-outside overlay */}
+                    <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl overflow-hidden z-50"
+                      style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 12px 32px rgba(0,0,0,0.12)' }}
+                    >
+                      <div className="px-4 py-3 border-b border-green-50">
+                        <span className="font-semibold text-sm text-green-900">Notifications</span>
+                      </div>
+                      <div className="p-4 text-xs text-gray-400 text-center">
+                        Real-time delivery and status updates show up here. Nothing new right now.
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ background: roleColor }}>
               {user?.name?.[0]?.toUpperCase()}
             </div>

@@ -14,6 +14,7 @@ import DeliveryTracking from './pages/volunteer/DeliveryTracking';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ImpactDashboard from './pages/ImpactDashboard';
 import LateNightRescue from './pages/LateNightRescue';
+import Settings from './pages/Settings';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/impact" element={<ImpactDashboard />} />
       <Route path="/late-night" element={<LateNightRescue />} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       {/* Donor */}
       <Route path="/donor" element={<ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>} />

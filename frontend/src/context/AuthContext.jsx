@@ -51,8 +51,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Merges updated fields (e.g. from PUT /auth/profile) into the cached user
+  // so pages like Settings/AddFood see fresh data without a full page reload.
+  const updateUser = (fields) => {
+    setUser((prev) => (prev ? { ...prev, ...fields } : prev));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

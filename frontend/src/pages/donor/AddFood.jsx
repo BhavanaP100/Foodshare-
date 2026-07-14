@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiUploadCloud, FiMapPin, FiClock, FiThermometer, FiAlertCircle } from 'react-icons/fi';
+import { FiUploadCloud, FiMapPin, FiClock, FiThermometer, FiAlertCircle, FiEdit3, FiCheckCircle } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { FreshnessBar } from '../../components/common/UIComponents';
+import LocationPicker from '../../components/common/LocationPicker';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
 const CATEGORIES = ['cooked', 'raw', 'packaged', 'beverages', 'dairy', 'bakery', 'other'];
@@ -25,6 +27,10 @@ const estimateFreshness = (form) => {
 
 export default function AddFood() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const savedLocation = user?.defaultPickupLocation;
+  const hasSavedLocation = !!(savedLocation?.lat && savedLocation?.lng);
+
   const [form, setForm] = useState({
     foodName: '', category: 'cooked', isVeg: true, quantity: '', quantityUnit: 'kg',
     cookedTime: '', storageCondition: 'room_temp',
@@ -35,6 +41,21 @@ export default function AddFood() {
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Whether this donation should use the saved default pickup location, or
+  // a one-time override. Defaults to "use saved" whenever one exists.
+  const [overridingLocation, setOverridingLocation] = useState(!hasSavedLocation);
+
+  // Pre-fill from the donor's saved default pickup location on load.
+  useEffect(() => {
+    if (hasSavedLocation && !overridingLocation) {
+      setForm((f) => ({
+        ...f,
+        pickupAddress: savedLocation.address || '',
+        location: { lat: savedLocation.lat, lng: savedLocation.lng },
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const freshnessScore = estimateFreshness(form);
   const freshnessBadge = freshnessScore >= 75 ? 'Fresh' : freshnessScore >= 50 ? 'Good' : freshnessScore >= 25 ? 'Use Soon' : 'Critical';
@@ -45,29 +66,26 @@ export default function AddFood() {
     setPreviews(files.map((f) => URL.createObjectURL(f)));
   };
 
- const getLocation = () => {
-  navigator.geolocation?.getCurrentPosition(
-    ({ coords }) => {
-      setForm({
-        ...form,
-        location: {
-          lat: coords.latitude.toFixed(6),
-          lng: coords.longitude.toFixed(6),
-        },
-      });
-    },
-    () => {
-      setError(
-        "Location access denied. Please enable location or enter coordinates manually."
-      );
-    }
-  );
-};
+  const toggleOverride = () => {
+    setOverridingLocation((prev) => {
+      const next = !prev;
+      if (!next && hasSavedLocation) {
+        // Switching back to "use saved" — restore saved values.
+        setForm((f) => ({
+          ...f,
+          pickupAddress: savedLocation.address || '',
+          location: { lat: savedLocation.lat, lng: savedLocation.lng },
+        }));
+      }
+      return next;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.location.lat || !form.location.lng) {
-      return setError('Please provide your location coordinates or use "Detect Location"');
+    if (!form.location.lat || !form.location.lng || !form.pickupAddress) {
+      return setError('Please provide a pickup location — search an address or select on the map.');
     }
     setLoading(true);
     try {
@@ -182,31 +200,50 @@ export default function AddFood() {
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">Pickup Deadline *</label>
                   <input type="datetime-local" required value={form.pickupDeadline} onChange={(e) => setForm({ ...form, pickupDeadline: e.target.value })} className={inputClass} />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Pickup Address *</label>
-                  <input type="text" required value={form.pickupAddress} onChange={(e) => setForm({ ...form, pickupAddress: e.target.value })} placeholder="Full address for pickup" className={inputClass} />
-                </div>
               </div>
             </div>
 
             {/* Location */}
             <div className="bg-white rounded-2xl p-6" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-800 text-sm">GPS Coordinates</h3>
-                <motion.button type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={getLocation} className="flex items-center gap-1.5 text-xs text-green-600 font-medium bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 hover:bg-green-100 transition-colors">
-                  <FiMapPin size={14} /> Detect My Location
-                </motion.button>
+                <h3 className="font-semibold text-gray-800 text-sm">Pickup Location</h3>
+                {hasSavedLocation && (
+                  <motion.button
+                    type="button" whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={toggleOverride}
+                    className="flex items-center gap-1.5 text-xs text-green-600 font-medium bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 hover:bg-green-100 transition-colors"
+                  >
+                    {overridingLocation ? <><FiCheckCircle size={14} /> Use Saved Location</> : <><FiEdit3 size={14} /> Override for This Donation</>}
+                  </motion.button>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Latitude</label>
-                  <input type="number" step="any" value={form.location.lat} onChange={(e) => setForm({ ...form, location: { ...form.location, lat: e.target.value } })} placeholder="12.9716" className={inputClass} />
+
+              {hasSavedLocation && !overridingLocation ? (
+                <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0' }}>
+                  <FiMapPin className="text-green-600 mt-0.5" size={18} />
+                  <div>
+                    {savedLocation.name && <div className="text-sm font-semibold text-green-900">{savedLocation.name}</div>}
+                    <div className="text-xs text-green-700 mt-0.5">{savedLocation.address}</div>
+                    <div className="text-xs text-green-500 mt-1">{Number(savedLocation.lat).toFixed(4)}, {Number(savedLocation.lng).toFixed(4)}</div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Longitude</label>
-                  <input type="number" step="any" value={form.location.lng} onChange={(e) => setForm({ ...form, location: { ...form.location, lng: e.target.value } })} placeholder="77.5946" className={inputClass} />
-                </div>
-              </div>
+              ) : (
+                <>
+                  {!hasSavedLocation && (
+                    <p className="text-xs text-gray-400 mb-3">
+                      You don't have a default pickup location saved yet. Search for the address or pick it on the map below —
+                      or set a default in <Link to ="/settings" className="text-green-600 font-medium hover:underline">Settings</Link> so it auto-fills next time.
+                    </p>
+                  )}
+                  <LocationPicker
+                    value={{ address: form.pickupAddress, lat: form.location.lat, lng: form.location.lng }}
+                    onChange={({ address, lat, lng }) =>
+                      setForm((f) => ({ ...f, pickupAddress: address ?? f.pickupAddress, location: { lat: lat ?? f.location.lat, lng: lng ?? f.location.lng } }))
+                    }
+                    addressLabel="Pickup Address for This Donation"
+                  />
+                </>
+              )}
             </div>
 
             {/* Images */}

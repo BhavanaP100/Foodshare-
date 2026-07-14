@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { FiUser, FiMail, FiLock, FiPhone, FiMapPin, FiChevronRight } from 'react-icons/fi';
+import LocationPicker from '../components/common/LocationPicker';
 
 const ROLES = [
   { value: 'donor', label: 'Food Donor', icon: '📦', desc: 'Share surplus food from restaurants, homes, or events', color: '#22c55e' },
@@ -14,7 +15,11 @@ export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: '', phone: '', address: '', ngoName: '', registrationNumber: '' });
+  const [form, setForm] = useState({
+    name: '', email: '', password: '', role: '', phone: '', address: '', ngoName: '', registrationNumber: '',
+    ngoLocation: { address: '', lat: '', lng: '' },
+    defaultPickupLocation: { name: '', address: '', lat: '', lng: '' },
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -23,9 +28,30 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (form.role === 'ngo' && (!form.ngoLocation.lat || !form.ngoLocation.lng)) {
+      setError('Please set your organization location — this is used to match you with nearby donations.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const data = await register(form);
+      const payload = {
+        name: form.name, email: form.email, password: form.password, role: form.role,
+        phone: form.phone, address: form.address,
+        ngoName: form.ngoName, registrationNumber: form.registrationNumber,
+      };
+
+      if (form.role === 'ngo') {
+        payload.location = { lat: form.ngoLocation.lat, lng: form.ngoLocation.lng };
+        payload.address = form.ngoLocation.address || form.address;
+      }
+
+      if (form.role === 'donor' && form.defaultPickupLocation.lat && form.defaultPickupLocation.lng) {
+        payload.defaultPickupLocation = form.defaultPickupLocation;
+      }
+
+      const data = await register(payload);
       if (data.success) {
         navigate(ROLE_REDIRECTS[data.user.role] || '/');
       } else {
@@ -140,7 +166,38 @@ export default function Register() {
                         <div className="col-span-2">
                           <input type="text" value={form.registrationNumber} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} placeholder="Registration Number (optional)" className="w-full px-3 py-3 rounded-xl border border-gray-200 focus:border-green-400 focus:outline-none text-sm" />
                         </div>
+                        <div className="col-span-2 pt-2">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Organization Location *</p>
+                          <p className="text-xs text-gray-400 mb-3">Required — this is how we match you with nearby donations.</p>
+                          <LocationPicker
+                            value={form.ngoLocation}
+                            onChange={(loc) => setForm({ ...form, ngoLocation: { ...form.ngoLocation, ...loc } })}
+                            addressLabel="Organization Address"
+                          />
+                        </div>
                       </>
+                    )}
+
+                    {form.role === 'donor' && (
+                      <div className="col-span-2 pt-2">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Default Pickup Location (optional)</p>
+                        <p className="text-xs text-gray-400 mb-3">
+                          If your food usually gets picked up from a restaurant, bakery, or venue rather than your home, save it here.
+                          You can also add or change this later in Settings, and override it any time when posting a donation.
+                        </p>
+                        <input
+                          type="text"
+                          value={form.defaultPickupLocation.name}
+                          onChange={(e) => setForm({ ...form, defaultPickupLocation: { ...form.defaultPickupLocation, name: e.target.value } })}
+                          placeholder="e.g., Green Leaf Bakery, Taj Banquet Hall (optional)"
+                          className="w-full px-3 py-3 rounded-xl border border-gray-200 focus:border-green-400 focus:outline-none text-sm mb-3"
+                        />
+                        <LocationPicker
+                          value={form.defaultPickupLocation}
+                          onChange={(loc) => setForm({ ...form, defaultPickupLocation: { ...form.defaultPickupLocation, ...loc } })}
+                          addressLabel="Pickup Address"
+                        />
+                      </div>
                     )}
                   </div>
 

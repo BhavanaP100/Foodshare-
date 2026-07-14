@@ -24,7 +24,9 @@ export default function NGODashboard() {
 
     api.get(`/donations/available?${params}`)
       .then(({ data }) => { if (data.success) setDonations(data.donations); })
-      .catch(() => {})
+      .catch((err) => {
+  console.error("Failed to fetch donations:", err);
+})
       .finally(() => setLoading(false));
   };
 
