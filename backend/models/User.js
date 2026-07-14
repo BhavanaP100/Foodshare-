@@ -39,6 +39,22 @@ const userSchema = new mongoose.Schema(
     registrationNumber: { type: String },
     capacity: { type: Number, default: 100 },
 
+    // Donor field: saved default pickup location (e.g. restaurant, bakery,
+    // wedding hall, office -- not necessarily the donor's own home/GPS
+    // location). Used to auto-fill Add Food so donors don't have to
+    // "detect location" (their current device location) every time.
+    defaultPickupLocation: {
+      name: { type: String },
+      address: { type: String },
+      lat: { type: Number },
+      lng: { type: Number },
+    },
+
+    // Volunteer field: referenced by routes/volunteer.js and
+    // authController.updateProfile but was missing from the schema, so it
+    // was silently dropped on every save. Added here to fix that.
+    isAvailable: { type: Boolean, default: true },
+
     // Common profile fields
     avatar: { type: String },
 

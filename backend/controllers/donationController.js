@@ -13,14 +13,31 @@ exports.addDonation = async (req, res) => {
 
     const images = req.files ? req.files.map((f) => `/uploads/${f.filename}`) : [];
 
+    // Resolve pickup location: use what was submitted (this covers both the
+    // "use my saved default" case, where the frontend pre-fills the fields,
+    // and a one-time override). Fall back to the donor's saved default
+    // pickup location server-side as well, in case the client omitted it.
+    const savedDefault = req.user.defaultPickupLocation;
+    const resolvedLat = location?.lat ?? savedDefault?.lat;
+    const resolvedLng = location?.lng ?? savedDefault?.lng;
+    const resolvedAddress = pickupAddress || savedDefault?.address;
+
+    if (!resolvedLat || !resolvedLng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Pickup location is required. Set a default pickup location in Settings or provide one for this donation.',
+      });
+    }
+
     const donationData = {
       donor: req.user._id,
       foodName, category, isVeg, quantity, quantityUnit,
-      cookedTime, storageCondition, pickupDeadline, pickupAddress, description,
+      cookedTime, storageCondition, pickupDeadline, description,
+      pickupAddress: resolvedAddress,
       images,
       location: {
         type: 'Point',
-        coordinates: [parseFloat(location.lng), parseFloat(location.lat)],
+        coordinates: [parseFloat(resolvedLng), parseFloat(resolvedLat)],
       },
     };
 
@@ -68,6 +85,17 @@ exports.getAvailableDonations = async (req, res) => {
   try {
     const { category, isVeg, maxDistance = 20 } = req.query;
     const ngo = req.user;
+
+    // NGO must have a saved location (set at registration or in Settings)
+    // for distance-based matching to work. Without this the query below
+    // would throw trying to destructure undefined coordinates.
+    if (!ngo.location?.coordinates || ngo.location.coordinates.length < 2) {
+      return res.status(400).json({
+        success: false,
+        code: 'NGO_LOCATION_MISSING',
+        message: 'Please set your organization location in Settings to see nearby donations.',
+      });
+    }
 
     const filter = { status: 'pending' };
     if (category) filter.category = category;
