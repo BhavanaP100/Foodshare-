@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiSearch, FiRefreshCw, FiMapPin, FiClock } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -11,13 +12,20 @@ export default function AvailableDonations() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('freshness');
   const [filters, setFilters] = useState({ category: '', isVeg: '', maxDistance: '20' });
+  const [locationMissing, setLocationMissing] = useState(false);
 
   const fetch = () => {
     setLoading(true);
+    setLocationMissing(false);
     const p = new URLSearchParams(filters);
     api.get(`/donations/available?${p}`)
       .then(({ data }) => { if (data.success) setDonations(data.donations); })
-      .catch(() => {})
+      .catch((err) => {
+        if (err.response?.data?.code === 'NGO_LOCATION_MISSING') setLocationMissing(true);
+        else{
+          alert("unable to load donation ")
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -38,6 +46,18 @@ export default function AvailableDonations() {
 
   return (
     <DashboardLayout title="Available Donations">
+      {locationMissing && (
+        <div className="rounded-2xl p-5 mb-6 flex items-center justify-between flex-wrap gap-3" style={{ background: '#fef3c7', border: '1.5px solid #fde68a' }}>
+          <div>
+            <div className="text-sm font-semibold text-amber-900">Set your organization location to see nearby donations</div>
+            <div className="text-xs text-amber-700 mt-0.5">We use it to match and rank donations by distance.</div>
+          </div>
+          <Link to="/settings">
+            <button className="btn-primary text-xs py-2 px-4">Go to Settings</button>
+          </Link>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="bg-white rounded-2xl p-4 mb-5 flex flex-wrap gap-3" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
         <div className="relative flex-1 min-w-40">
@@ -60,12 +80,19 @@ export default function AvailableDonations() {
           <option value="true">🟢 Veg</option>
           <option value="false">🔴 Non-Veg</option>
         </select>
-        <select value={filters.maxDistance} onChange={e => setFilters({ ...filters, maxDistance: e.target.value })} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none">
-          <option value="5">5 km</option>
-          <option value="10">10 km</option>
-          <option value="20">20 km</option>
-          <option value="50">50 km</option>
-        </select>
+        <div className="flex items-center gap-2">
+  <input
+    type="number"
+    min="1"
+    value={filters.maxDistance}
+    onChange={(e) =>
+      setFilters({ ...filters, maxDistance: e.target.value })
+    }
+    className="w-24 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none"
+    placeholder="KM"
+  />
+  <span className="text-sm text-gray-500">km</span>
+</div>
         <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={fetch} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium">
           <FiRefreshCw size={14} /> Refresh
         </motion.button>

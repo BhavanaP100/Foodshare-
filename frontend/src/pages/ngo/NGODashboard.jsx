@@ -14,9 +14,11 @@ export default function NGODashboard() {
   const [filters, setFilters] = useState({ category: '', isVeg: '', maxDistance: '20' });
   const [search, setSearch] = useState('');
   const [accepting, setAccepting] = useState(null);
+  const [locationMissing, setLocationMissing] = useState(false);
 
   const fetchDonations = () => {
     setLoading(true);
+    setLocationMissing(false);
     const params = new URLSearchParams();
     if (filters.category) params.append('category', filters.category);
     if (filters.isVeg !== '') params.append('isVeg', filters.isVeg);
@@ -25,8 +27,12 @@ export default function NGODashboard() {
     api.get(`/donations/available?${params}`)
       .then(({ data }) => { if (data.success) setDonations(data.donations); })
       .catch((err) => {
-  console.error("Failed to fetch donations:", err);
-})
+        if (err.response?.data?.code === 'NGO_LOCATION_MISSING') {
+          setLocationMissing(true);
+        } else {
+          alert("Unable to load donations")
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -50,12 +56,24 @@ export default function NGODashboard() {
 
   return (
     <DashboardLayout title="NGO Dashboard">
+      {locationMissing && (
+        <div className="rounded-2xl p-5 mb-6 flex items-center justify-between flex-wrap gap-3" style={{ background: '#fef3c7', border: '1.5px solid #fde68a' }}>
+          <div>
+            <div className="text-sm font-semibold text-amber-900">Set your organization location to see nearby donations</div>
+            <div className="text-xs text-amber-700 mt-0.5">We use it to match and rank donations by distance.</div>
+          </div>
+          <Link to="/settings">
+            <button className="btn-primary text-xs py-2 px-4">Go to Settings</button>
+          </Link>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon="🍽️" label="Available Now" value={pending.length} color="#22c55e" delay={0} />
         <StatCard icon="✅" label="Accepted" value={accepted.length} color="#0ea5e9" delay={0.1} />
         <StatCard icon="🔴" label="Critical / Urgent" value={donations.filter(d => d.urgencyLevel === 'critical').length} color="#ef4444" delay={0.2} />
-        <StatCard icon="📍" label="Within 20km" value={donations.length} color="#f59e0b" delay={0.3} />
+        <StatCard icon="📍" label={`Within ${filters.maxDistance} km`} value={donations.length} color="#f59e0b" delay={0.3} />
       </div>
 
       {/* Filters Bar */}
@@ -73,12 +91,19 @@ export default function NGODashboard() {
           <option value="true">🟢 Veg Only</option>
           <option value="false">🔴 Non-Veg Only</option>
         </select>
-        <select value={filters.maxDistance} onChange={(e) => setFilters({ ...filters, maxDistance: e.target.value })} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none">
-          <option value="5">Within 5 km</option>
-          <option value="10">Within 10 km</option>
-          <option value="20">Within 20 km</option>
-          <option value="50">Within 50 km</option>
-        </select>
+       <div className="flex items-center gap-2">
+  <input
+    type="number"
+    min="1"
+    value={filters.maxDistance}
+    onChange={(e) =>
+      setFilters({ ...filters, maxDistance: e.target.value })
+    }
+    className="w-24 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none"
+    placeholder="KM"
+  />
+  <span className="text-sm text-gray-500">km</span>
+</div>
         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={fetchDonations} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium">
           <FiRefreshCw size={15} /> Apply
         </motion.button>
