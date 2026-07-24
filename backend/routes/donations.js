@@ -25,7 +25,8 @@ router.post('/add', protect, authorize('donor'), upload.array('images', 5), addD
 router.get('/my', protect, authorize('donor'), getMyDonations);
 router.get('/available', protect, authorize('ngo', 'volunteer'), getAvailableDonations);
 router.get('/late-night', protect, getLateNightDonations);
-router.post('/:id/accept', protect, authorize('ngo'), acceptDonation);
+
+router.post('/:id/accept', protect, authorize('ngo', 'customer'), acceptDonation);
 router.get('/all', protect, authorize('admin'), getAllDonations);
 router.get('/:id', protect, getDonationById);
 

@@ -12,11 +12,12 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
+    
     role: {
-      type: String,
-      required: true,
-      enum: ['donor', 'ngo', 'volunteer','admin'],
-    },
+  type: String,
+  required: true,
+  enum: ['donor', 'ngo', 'volunteer', 'admin', 'customer'],
+},
 
     phone: { type: String },
     address: { type: String },

@@ -91,6 +91,14 @@ const calculateFreshness = (donation) => {
     urgencyLevel = 'critical';
   }
 
+  // Ensure urgency buckets align with frontend expectations.
+  // Frontend LateNightRescue explicitly renders only:
+  //   - critical
+  //   - high ("Use Soon")
+  // Other levels will effectively fall into the default "pending" pool.
+  if (urgencyLevel === 'medium') urgencyLevel = 'high';
+  if (urgencyLevel === 'low') urgencyLevel = 'medium';
+
   return { freshnessScore, freshnessBadge, urgencyLevel };
 };
 

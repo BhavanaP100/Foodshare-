@@ -135,22 +135,23 @@ exports.getAvailableDonations = async (req, res) => {
 };
 
 // @route  GET /api/donations/late-night
-// Donations between 10pm–5am or with critical freshness
+// Late-night view should show ALL pending donations during the active window (22:00–05:00).
 exports.getLateNightDonations = async (req, res) => {
   try {
     const now = new Date();
     const hour = now.getHours();
     const isLateNight = hour >= 22 || hour < 5;
 
-    const donations = await Donation.find({
-      status: 'pending',
-      $or: [
-        { freshnessBadge: { $in: ['Use Soon', 'Critical'] } },
-        ...(isLateNight ? [{ createdAt: { $gte: new Date(Date.now() - 3 * 60 * 60 * 1000) } }] : []),
-      ],
-    })
+    // Show all pending donations while late-night mode is active.
+    // (Frontend can categorize by freshnessBadge/urgencyLevel.)
+    if (!isLateNight) {
+      return res.json({ success: true, donations: [], isLateNight });
+    }
+
+    const donations = await Donation.find({ status: 'pending' })
       .populate('donor', 'name phone address')
-      .sort({ freshnessScore: 1 }); // most critical first
+      .sort({ createdAt: -1 });
+
 
     const enriched = donations.map((d) => {
       const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(d);
