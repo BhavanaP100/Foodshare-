@@ -1,6 +1,8 @@
+
 import { useEffect, useRef, useState } from "react";
 import { motion, useAnimation, useInView, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from '../context/AuthContext';
 // ─── Floating Particle Background ──────────────────────────────────────────
 function ParticleField() {
   const particles = Array.from({ length: 28 }, (_, i) => ({
@@ -296,8 +298,20 @@ function AnimatedCounter({ target, suffix = "+" }) {
 export default function Home() {
   const [lateNightMode, setLateNightMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-const navigate = useNavigate();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const lnBg = lateNightMode ? "#0a0d12" : undefined;
+
+  // Late Night Rescue needs an account — send guests to a login/signup
+  // prompt instead of straight through.
+  const goToLateNight = () => {
+    if (user) {
+      navigate("/late-night");
+    } else {
+      setShowAuthPrompt(true);
+    }
+  };
 
   return (
     <div
@@ -785,9 +799,12 @@ const navigate = useNavigate();
                 <div style={{ fontSize: "0.72rem", letterSpacing: "0.15em", color: "#00ffb4", marginBottom: 6 }}>REAL-TIME DATA</div>
                 <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem", margin: 0 }}>Impact Preview</h2>
               </div>
-              <button style={{ background: "transparent", border: "1.5px solid rgba(0,255,180,0.3)", color: "#00ffb4", borderRadius: 8, padding: "9px 20px", fontSize: "0.82rem", cursor: "pointer", fontWeight: 600 }}>
-                View Full Impact →
-              </button>
+              <button
+  onClick={() => navigate("/impact")}
+  style={{ background: "transparent", border: "1.5px solid rgba(0,255,180,0.3)", color: "#00ffb4", borderRadius: 8, padding: "9px 20px", fontSize: "0.82rem", cursor: "pointer", fontWeight: 600 }}
+>
+  View Full Impact →
+</button>
             </div>
           </ScrollReveal>
 
@@ -912,14 +929,16 @@ const navigate = useNavigate();
                 <p style={{ color: "rgba(200,230,220,0.65)", fontSize: "0.92rem", lineHeight: 1.75, marginBottom: 24, fontFamily: "'DM Sans', sans-serif" }}>
                   Our late-night access ensures food reaches those who need it anytime. Volunteers and NGOs stay active 24/7 so no surplus is ever wasted.
                 </p>
+             
+
                 <motion.button
                   className="glow-btn"
-                  style={{ fontSize: "0.9rem", padding: "11px 26px" }}
-                  whileHover={{ scale: 1.06 }}
-                  onClick={() => setLateNightMode(true)}
-                >
-                  Explore Late Night Access →
-                </motion.button>
+                 style={{ fontSize: "0.9rem", padding: "11px 26px" }}
+                   whileHover={{ scale: 1.06 }}
+                  onClick={goToLateNight}
+                    >
+                   Explore Late Night Access →
+                   </motion.button>
               </div>
             </ScrollReveal>
 
@@ -962,6 +981,54 @@ const navigate = useNavigate();
           </div>
         </footer>
       </div>
+
+      {/* Auth prompt modal — shown when a guest tries to open Late Night Rescue */}
+      <AnimatePresence>
+        {showAuthPrompt && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowAuthPrompt(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              style={{
+                position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                zIndex: 201, background: '#0a0d12', border: '1px solid rgba(0,255,180,0.25)',
+                borderRadius: 20, padding: '32px 28px', width: 340, textAlign: 'center',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+              }}
+            >
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🌙</div>
+              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '1.2rem', color: '#e8f4f0', marginBottom: 8 }}>
+                Sign in to continue
+              </h3>
+              <p style={{ color: 'rgba(200,230,220,0.6)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 24 }}>
+                Late Night Rescue needs an account so you can request or claim food safely.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  className="glow-btn"
+                  style={{ width: '100%', padding: '11px 0' }}
+                  onClick={() => navigate('/login', { state: { redirect: '/late-night' } })}
+                >
+                  Login
+                </button>
+                <button
+                  className="outline-btn"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => navigate('/register', { state: { redirect: '/late-night' } })}
+                >
+                  Sign Up
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

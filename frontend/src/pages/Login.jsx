@@ -1,5 +1,6 @@
+
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
@@ -9,11 +10,14 @@ const ROLE_REDIRECTS = {
   ngo: '/ngo',
   volunteer: '/volunteer',
   admin: '/admin',
+  customer: '/late-night',
 };
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.redirect;
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
@@ -26,7 +30,7 @@ export default function Login() {
     try {
       const data = await login(form.email, form.password);
       if (data.success) {
-        navigate(ROLE_REDIRECTS[data.user.role] || '/');
+        navigate(redirectTo || ROLE_REDIRECTS[data.user.role] || '/');
       } else {
         setError(data.message || 'Login failed');
       }
