@@ -115,7 +115,7 @@ export default function NGODashboard() {
           <SectionHeader title="🔴 Urgent — Act Now" sub="These will expire soon" />
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {donations.filter(d => d.urgencyLevel === 'critical' && d.status === 'pending').map((d, i) => (
-              <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance delay={i * 0.05} />
+              <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance showMatchScore delay={i * 0.05} />
             ))}
           </div>
         </div>
@@ -135,7 +135,7 @@ export default function NGODashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {pending.map((d, i) => (
-              <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance delay={i * 0.05} />
+              <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance showMatchScore delay={i * 0.05} />
             ))}
           </div>
         )}

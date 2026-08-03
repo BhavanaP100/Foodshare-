@@ -1,4 +1,4 @@
- import { motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 // ─── Stat Card ─────────────────────────────────────────────────
 export function StatCard({ icon, label, value, sub, color = '#22c55e', delay = 0 }) {
@@ -62,7 +62,7 @@ export function StatusBadge({ status }) {
 }
 
 // ─── Food Donation Card ─────────────────────────────────────────
-export function FoodCard({ donation, onAccept, showAccept = false, showDistance = false, delay = 0 }) {
+export function FoodCard({ donation, onAccept, showAccept = false, showDistance = false, showMatchScore = false, delay = 0 }) {
   const timeLeft = donation.minutesLeft !== undefined
     ? donation.minutesLeft < 60
       ? `${donation.minutesLeft}m left`
@@ -114,6 +114,21 @@ export function FoodCard({ donation, onAccept, showAccept = false, showDistance 
           )}
           <span>{donation.mealsEquivalent} meals equiv.</span>
         </div>
+
+        {showMatchScore && donation.matchScore !== undefined && (
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${donation.matchScore}%`,
+                  background: donation.matchScore >= 75 ? '#22c55e' : donation.matchScore >= 50 ? '#0ea5e9' : '#f59e0b',
+                }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">Match: {donation.matchScore}</span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <StatusBadge status={donation.status} />

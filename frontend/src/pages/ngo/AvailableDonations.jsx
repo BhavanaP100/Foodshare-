@@ -117,7 +117,7 @@ export default function AvailableDonations() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {displayed.map((d, i) => (
-            <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance delay={i * 0.04} />
+            <FoodCard key={d._id} donation={d} showAccept onAccept={handleAccept} showDistance showMatchScore delay={i * 0.04} />
           ))}
         </div>
       )}
