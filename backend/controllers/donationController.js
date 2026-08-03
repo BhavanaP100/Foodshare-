@@ -1,6 +1,6 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
-const { calculateFreshness, smartMatchNGOs, kgToMeals, kgToCO2Saved } = require('../utils/algorithms');
+const { calculateFreshness, smartMatchNGOs, rankDonationsForNGO, kgToMeals, kgToCO2Saved } = require('../utils/algorithms');
 
 // @route  POST /api/donations/add
 exports.addDonation = async (req, res) => {
@@ -80,7 +80,8 @@ exports.getMyDonations = async (req, res) => {
 };
 
 // @route  GET /api/donations/available
-// For NGOs - see available (pending) donations sorted by smart ranking
+// For NGOs - see available (pending) donations, ranked per-NGO by distance,
+// this NGO's capacity fit, and each donation's live-recalculated freshness/urgency.
 exports.getAvailableDonations = async (req, res) => {
   try {
     const { category, isVeg, maxDistance = 20 } = req.query;
@@ -101,32 +102,20 @@ exports.getAvailableDonations = async (req, res) => {
     if (category) filter.category = category;
     if (typeof isVeg !== 'undefined') filter.isVeg = isVeg === 'true';
 
-    const donations = await Donation.find(filter)
-      .populate('donor', 'name phone address')
-      .sort({ freshnessScore: -1, createdAt: -1 });
+    const donations = await Donation.find(filter).populate('donor', 'name phone address');
 
-    // Calculate distance and freshness for each
-    const [ngoLng, ngoLat] = ngo.location.coordinates;
-    const { haversineDistance } = require('../utils/algorithms');
+    // Weighted ranking (distance + this NGO's capacity fit + freshness/urgency),
+    // freshness is recalculated live for every donation as part of this call.
+    const ranked = rankDonationsForNGO(ngo, donations, parseFloat(maxDistance));
 
-    const enriched = donations
-      .map((d) => {
-        const [donLng, donLat] = d.location.coordinates;
-        const distance = haversineDistance(ngoLat, ngoLng, donLat, donLng);
-        const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(d);
-
-        if (distance > parseFloat(maxDistance)) return null;
-
-        return {
-          ...d.toObject(),
-          distance,
-          freshnessScore,
-          freshnessBadge,
-          urgencyLevel,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.freshnessScore - a.freshnessScore || a.distance - b.distance);
+    const enriched = ranked.map(({ donation, distance, freshnessScore, freshnessBadge, urgencyLevel, matchScore }) => ({
+      ...donation.toObject(),
+      distance,
+      freshnessScore,
+      freshnessBadge,
+      urgencyLevel,
+      matchScore,
+    }));
 
     res.json({ success: true, donations: enriched });
   } catch (err) {
