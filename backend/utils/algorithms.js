@@ -67,7 +67,8 @@ const calculateFreshness = (donation) => {
   const quantityPressure = quantity > 50 ? 0.95 : 1.0;
 
   // Base freshness score (100 → 0)
-  let freshnessScore = Math.max(0, Math.round((1 - effectiveDecay) * 100 * quantityPressure));
+
+  let freshnessScore = Math.max(0, Math.min(100, Math.round((1 - effectiveDecay) * 100 * quantityPressure)));
 
   // Deadline override - if deadline is within 1 hour, cap at 20
   if (deadlineFactor < 1) freshnessScore = Math.min(freshnessScore, 20);
@@ -90,6 +91,14 @@ const calculateFreshness = (donation) => {
     freshnessBadge = 'Critical';
     urgencyLevel = 'critical';
   }
+
+  // Ensure urgency buckets align with frontend expectations.
+  // Frontend LateNightRescue explicitly renders only:
+  //   - critical
+  //   - high ("Use Soon")
+  // Other levels will effectively fall into the default "pending" pool.
+  if (urgencyLevel === 'medium') urgencyLevel = 'high';
+  if (urgencyLevel === 'low') urgencyLevel = 'medium';
 
   return { freshnessScore, freshnessBadge, urgencyLevel };
 };
@@ -181,6 +190,63 @@ const smartMatchNGOs = (donation, ngoList) => {
 };
 
 /**
+ * ALGORITHM 3b: Rank donations for a specific NGO
+ * Same weighted model as smartMatchNGOs, but inverted — scores every
+ * available donation from one NGO's point of view (distance to that NGO,
+ * that NGO's capacity, and the donation's own freshness/urgency).
+ *
+ * Used by GET /api/donations/available so each NGO sees donations
+ * prioritized specifically for them (their location, their capacity),
+ * rather than a single global ordering.
+ *
+ * @param {Object} ngo - the NGO user (must have location + capacity)
+ * @param {Array} donations - list of pending donation documents
+ * @param {number} maxDistance - km radius cutoff
+ * @returns {Array} { donation, distance, freshnessScore, freshnessBadge, urgencyLevel, matchScore }, sorted best-first
+ */
+const rankDonationsForNGO = (ngo, donations, maxDistance = 20) => {
+  const [ngoLng, ngoLat] = ngo.location.coordinates;
+
+  return donations
+    .map((donation) => {
+      const [donLng, donLat] = donation.location.coordinates;
+      const distance = haversineDistance(ngoLat, ngoLng, donLat, donLng);
+
+      if (distance > maxDistance) return null;
+
+      const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(donation);
+
+      // Normalize distance (closer = higher score)
+      const distanceScore = Math.max(0, 100 - (distance / maxDistance) * 100);
+
+      // How well this NGO's capacity fits the donation's quantity
+      const capacityScore = Math.min(100, (ngo.capacity / donation.quantity) * 100);
+
+      const availabilityBonus = ngo.isActive ? 10 : 0;
+
+      // Urgent (low-freshness) donations weight distance more heavily —
+      // get it to the nearest NGO fast before it's gone.
+      const urgencyWeight = freshnessScore < 30 ? 0.6 : 0.4;
+
+      const rawScore =
+        urgencyWeight * distanceScore +
+        (1 - urgencyWeight) * 0.7 * capacityScore +
+        availabilityBonus;
+
+      return {
+        donation,
+        distance,
+        freshnessScore,
+        freshnessBadge,
+        urgencyLevel,
+        matchScore: Math.min(100, Math.round(rawScore)),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.matchScore - a.matchScore);
+};
+
+/**
  * ALGORITHM 4: Volunteer Finite State Machine
  * Valid state transitions
  */
@@ -208,6 +274,7 @@ module.exports = {
   calculateFreshness,
   haversineDistance,
   smartMatchNGOs,
+  rankDonationsForNGO,
   isValidTransition,
   DELIVERY_STATES,
   kgToMeals,

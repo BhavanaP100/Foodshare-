@@ -1,5 +1,6 @@
+
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { FiUser, FiMail, FiLock, FiPhone, FiMapPin, FiChevronRight } from 'react-icons/fi';
@@ -9,11 +10,14 @@ const ROLES = [
   { value: 'donor', label: 'Food Donor', icon: '📦', desc: 'Share surplus food from restaurants, homes, or events', color: '#22c55e' },
   { value: 'ngo', label: 'NGO / Shelter', icon: '🏠', desc: 'Receive food donations for your community', color: '#0ea5e9' },
   { value: 'volunteer', label: 'Volunteer', icon: '🚴', desc: 'Pick up and deliver food to those in need', color: '#f59e0b' },
+   {value: 'customer', label: 'Need Food', icon: '🍽️', desc: 'Find and request available food near you', color: '#ef4444' }
 ];
 
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.redirect;
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name: '', email: '', password: '', role: '', phone: '', address: '', ngoName: '', registrationNumber: '',
@@ -23,7 +27,8 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer' };
+
+  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer', customer: '/late-night' };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,7 +58,7 @@ export default function Register() {
 
       const data = await register(payload);
       if (data.success) {
-        navigate(ROLE_REDIRECTS[data.user.role] || '/');
+        navigate(redirectTo || ROLE_REDIRECTS[data.user.role] || '/');
       } else {
         setError(data.message);
         setStep(2);

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,6 +67,11 @@ export default function LateNightRescue() {
 
   const urgent = donations.filter(d => d.urgencyLevel === 'critical' && d.status === 'pending');
   const soon = donations.filter(d => d.urgencyLevel === 'high' && d.status === 'pending');
+  // Everything else pending (e.g. Fresh/Good donations) — previously counted
+  // in "Total Listings" but never actually rendered anywhere.
+  const others = donations.filter(
+    d => d.status === 'pending' && d.urgencyLevel !== 'critical' && d.urgencyLevel !== 'high'
+  );
   const available = donations.filter(d => d.status === 'pending');
 
   return (
@@ -170,12 +176,30 @@ export default function LateNightRescue() {
               </div>
             )}
 
+            {/* Other available donations (Fresh / Good) */}
+            {others.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiPackage className="text-green-300" size={18} />
+                  <h2 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: '1.1rem', color: '#00ffb4' }}>
+                    Other Available Donations
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {others.map((d, i) => (
+                    <LateNightCard key={d._id} donation={d} onAccept={handleAccept} accepting={accepting} delay={i * 0.06} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {available.length === 0 && (
               <div className="text-center py-16">
                 <div className="text-5xl mb-4">🌙</div>
-                <p style={{ color: 'rgba(200,230,220,0.5)' }}>No urgent listings right now. Check back soon.</p>
+                <p style={{ color: 'rgba(200,230,220,0.5)' }}>No late-night donations right now. Check back soon.</p>
               </div>
             )}
+
           </>
         )}
 
