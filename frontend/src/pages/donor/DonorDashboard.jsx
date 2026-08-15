@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiPlusCircle, FiPackage, FiTrendingUp, FiClock, FiHeart, FiArrowRight } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { StatCard, FoodCard, SectionHeader, EmptyState, Spinner } from '../../components/common/UIComponents';
+
+import { StatCard, FoodCard, SectionHeader, EmptyState, Spinner, RecoveryBadge } from '../../components/common/UIComponents';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
@@ -85,6 +86,7 @@ export default function DonorDashboard() {
         ))}
       </div>
 
+
       {/* Recent Donations */}
       <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
         <SectionHeader
@@ -118,6 +120,22 @@ export default function DonorDashboard() {
             ))}
           </div>
         )}
+        {donations.filter(d => d.status === 'expired' && d.recoveryOption).length > 0 && (
+  <div className="mb-8">
+    <SectionHeader title="⚠️ Needs Recovery Action" sub="These missed pickup or spoiled in transit" />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {donations.filter(d => d.status === 'expired' && d.recoveryOption).map(d => (
+        <div key={d._id} className="bg-white rounded-2xl p-4" style={{ border: '1.5px solid #fee2e2' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold text-sm text-gray-800">{d.foodName}</span>
+            <span className="text-xs text-red-500 font-medium">{d.spoiledStage === 'in_delivery' ? 'Spoiled in transit' : 'Missed pickup'}</span>
+          </div>
+          <RecoveryBadge option={d.recoveryOption} reason={d.recoveryReason} />
+        </div>
+      ))}
+    </div>
+  </div>
+)}
       </div>
     </DashboardLayout>
   );

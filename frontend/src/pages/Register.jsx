@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +22,7 @@ export default function Register() {
     name: '', email: '', password: '', role: '', phone: '', address: '', ngoName: '', registrationNumber: '',
     ngoLocation: { address: '', lat: '', lng: '' },
     defaultPickupLocation: { name: '', address: '', lat: '', lng: '' },
+    volunteerLocation: { address: '', lat: '', lng: '' },
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,6 +54,11 @@ export default function Register() {
 
       if (form.role === 'donor' && form.defaultPickupLocation.lat && form.defaultPickupLocation.lng) {
         payload.defaultPickupLocation = form.defaultPickupLocation;
+      }
+
+      if (form.role === 'volunteer' && form.volunteerLocation.lat && form.volunteerLocation.lng) {
+        payload.location = { lat: form.volunteerLocation.lat, lng: form.volunteerLocation.lng };
+        payload.address = form.volunteerLocation.address || form.address;
       }
 
       const data = await register(payload);
@@ -201,6 +206,20 @@ export default function Register() {
                           value={form.defaultPickupLocation}
                           onChange={(loc) => setForm({ ...form, defaultPickupLocation: { ...form.defaultPickupLocation, ...loc } })}
                           addressLabel="Pickup Address"
+                        />
+                      </div>
+                    )}
+
+                    {form.role === 'volunteer' && (
+                      <div className="col-span-2 pt-2">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Your Location (optional but recommended)</p>
+                        <p className="text-xs text-gray-400 mb-3">
+                          Helps NGOs recommend you for nearby deliveries. You can add or update this later in Settings.
+                        </p>
+                        <LocationPicker
+                          value={form.volunteerLocation}
+                          onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
+                          addressLabel="Your Address"
                         />
                       </div>
                     )}

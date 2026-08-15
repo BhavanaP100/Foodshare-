@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FiStar, FiTruck, FiAward, FiCheckCircle, FiClock, FiArrowRight } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { io } from 'socket.io-client';
+import { FiStar, FiTruck, FiAward, FiCheckCircle, FiClock, FiArrowRight, FiShield, FiBell } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { StatCard, StatusBadge, FreshnessBadge, SectionHeader, EmptyState, Spinner } from '../../components/common/UIComponents';
 import { useAuth } from '../../context/AuthContext';
@@ -37,8 +38,9 @@ export default function VolunteerDashboard() {
   const [tasks, setTasks] = useState({ active: [], completed: [] });
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState(null);
 
-  useEffect(() => {
+  const fetchTasks = () => {
     Promise.all([
       api.get('/volunteer/tasks'),
       api.get('/volunteer/leaderboard'),
@@ -49,12 +51,60 @@ export default function VolunteerDashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => {
+    fetchTasks();
+
+    if (!user?._id) return;
+    const socket = io('http://localhost:5000');
+    socket.emit('join_volunteer_room', user._id);
+    socket.on('new_assignment', (payload) => {
+      setNotification(payload);
+      fetchTasks(); // refresh active tasks so the new one shows up immediately
+    });
+
+    return () => socket.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id]);
 
   const BADGE_ICONS = { 'First Delivery': '🥇', 'Speed Star': '⚡', 'Night Hero': '🌙', '10 Deliveries': '🏅', '50 Deliveries': '🏆' };
 
   return (
     <DashboardLayout title="Volunteer Dashboard">
+      {/* New assignment toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className="rounded-2xl p-4 mb-6 flex items-center gap-3"
+            style={{ background: '#dbeafe', border: '1.5px solid #93c5fd' }}
+          >
+            <FiBell className="text-blue-600 flex-shrink-0" size={20} />
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-blue-900">New delivery assigned!</div>
+              <div className="text-xs text-blue-700 mt-0.5">
+                {notification.foodName} — requested by {notification.ngoName}
+              </div>
+            </div>
+            <button onClick={() => setNotification(null)} className="text-blue-400 hover:text-blue-600 text-xs font-medium">Dismiss</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pending verification banner */}
+      {!user?.isVerified && (
+        <div className="rounded-2xl p-5 mb-6 flex items-center gap-3 flex-wrap" style={{ background: '#fef3c7', border: '1.5px solid #fde68a' }}>
+          <FiShield className="text-amber-600 flex-shrink-0" size={20} />
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-amber-900">Your account is pending verification</div>
+            <div className="text-xs text-amber-700 mt-0.5">
+              An admin needs to verify your account before NGOs can assign you deliveries. You'll be notified once approved.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
@@ -68,6 +118,9 @@ export default function VolunteerDashboard() {
           <div className="flex items-center gap-4 mt-2">
             <span className="text-blue-200 text-sm">⭐ {user?.rating?.toFixed(1) || '5.0'} rating</span>
             <span className="text-blue-200 text-sm">📦 {user?.completedDeliveries || 0} deliveries</span>
+            {user?.isVerified && (
+              <span className="text-green-300 text-sm flex items-center gap-1"><FiCheckCircle size={13} /> Verified</span>
+            )}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">

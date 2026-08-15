@@ -29,7 +29,11 @@ export default function Settings() {
     defaultPickupLocation: user?.defaultPickupLocation || { name: '', address: '', lat: '', lng: '' },
     // Volunteer
     isAvailable: user?.isAvailable ?? true,
+    volunteerLocation: user?.location?.coordinates
+      ? { address: user.address || '', lat: user.location.coordinates[1], lng: user.location.coordinates[0] }
+      : { address: user?.address || '', lat: '', lng: '' },
   });
+  
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -64,6 +68,10 @@ export default function Settings() {
 
       if (user?.role === 'volunteer') {
         payload.isAvailable = form.isAvailable;
+        if (form.volunteerLocation.lat && form.volunteerLocation.lng) {
+          payload.location = { lat: form.volunteerLocation.lat, lng: form.volunteerLocation.lng };
+          payload.address = form.volunteerLocation.address || form.address;
+        }
       }
 
       const { data } = await api.put('/auth/profile', payload);
@@ -127,7 +135,7 @@ export default function Settings() {
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
                   <input value={user?.email || ''} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
                 </div>
-                {user?.role !== 'donor' && user?.role !== 'ngo' && (
+                {user?.role !== 'donor' && user?.role !== 'ngo' && user?.role !== 'volunteer' && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">Address</label>
                     <div className="relative">
@@ -194,22 +202,36 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Volunteer: availability */}
+            {/* Volunteer: availability + location */}
             {user?.role === 'volunteer' && (
-              <div className={cardClass} style={cardStyle}>
-                <h3 className="font-semibold text-gray-800 mb-4 text-sm">Availability</h3>
-                <div className="flex gap-3">
-                  {[{ v: true, l: '🟢 Available for deliveries' }, { v: false, l: '⏸️ Not available right now' }].map(({ v, l }) => (
-                    <button
-                      type="button" key={String(v)}
-                      onClick={() => setForm({ ...form, isAvailable: v })}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all ${form.isAvailable === v ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500'}`}
-                    >
-                      {l}
-                    </button>
-                  ))}
+              <>
+                <div className={cardClass} style={cardStyle}>
+                  <h3 className="font-semibold text-gray-800 mb-4 text-sm">Availability</h3>
+                  <div className="flex gap-3">
+                    {[{ v: true, l: '🟢 Available for deliveries' }, { v: false, l: '⏸️ Not available right now' }].map(({ v, l }) => (
+                      <button
+                        type="button" key={String(v)}
+                        onClick={() => setForm({ ...form, isAvailable: v })}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all ${form.isAvailable === v ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500'}`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+
+                <div className={cardClass} style={cardStyle}>
+                  <h3 className="font-semibold text-gray-800 mb-1 text-sm">Your Location</h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Used to recommend you for nearby deliveries when an NGO accepts a donation.
+                  </p>
+                  <LocationPicker
+                    value={form.volunteerLocation}
+                    onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
+                    addressLabel="Your Address"
+                  />
+                </div>
+              </>
             )}
 
             {/* Admin: nothing role-specific beyond basic profile */}

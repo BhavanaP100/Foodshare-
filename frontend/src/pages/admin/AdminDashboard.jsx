@@ -4,7 +4,8 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { FiUsers, FiPackage, FiTruck, FiTrendingUp, FiToggleRight, FiToggleLeft } from 'react-icons/fi';
+
+import { FiUsers, FiPackage, FiTruck, FiTrendingUp, FiToggleRight, FiToggleLeft, FiShield } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { StatCard, StatusBadge, Spinner } from '../../components/common/UIComponents';
 import api from '../../services/api';
@@ -33,12 +34,22 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+ 
   const toggleUser = async (id) => {
-    try {
-      const { data } = await api.put(`/admin/users/${id}/toggle`);
-      if (data.success) setUsers(prev => prev.map(u => u._id === id ? data.user : u));
-    } catch { }
-  };
+  try {
+    const { data } = await api.put(`/admin/users/${id}/toggle`);
+    if (data.success) setUsers(prev => prev.map(u => u._id === id ? data.user : u));
+  } catch { }
+};
+
+const verifyVolunteer = async (id) => {
+  try {
+    const { data } = await api.put(`/admin/volunteers/${id}/verify`);
+    if (data.success) setUsers(prev => prev.map(u => u._id === id ? data.user : u));
+  } catch (err) {
+    alert(err.response?.data?.message || 'Failed to verify volunteer');
+  }
+};
 
   const TABS = ['overview','users','donations','charts'];
 
@@ -91,7 +102,13 @@ export default function AdminDashboard() {
                     <tr key={d._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-3 font-medium text-gray-800">{d.foodName}</td>
                       <td className="py-3 text-gray-500">{d.donor?.name}</td>
-                      <td className="py-3"><StatusBadge status={d.status} /></td>
+                    
+                      <td className="py-3">
+  <StatusBadge status={d.status} />
+  {d.status === 'expired' && d.recoveryOption && (
+    <span className="ml-2 text-xs text-purple-600 font-medium">→ {d.recoveryOption.replace('_', ' ')}</span>
+  )}
+</td>
                       <td className="py-3 text-gray-400">{new Date(d.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -110,47 +127,71 @@ export default function AdminDashboard() {
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-400 text-xs border-b border-gray-100">
-                  <th className="pb-3 font-medium">Name</th>
-                  <th className="pb-3 font-medium">Email</th>
-                  <th className="pb-3 font-medium">Role</th>
-                  <th className="pb-3 font-medium">Joined</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">{u.name?.[0]}</div>
-                        <span className="font-medium text-gray-800">{u.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 text-gray-500">{u.email}</td>
-                    <td className="py-3">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize
-                        ${u.role==='donor'?'bg-green-50 text-green-700':u.role==='ngo'?'bg-blue-50 text-blue-700':u.role==='volunteer'?'bg-amber-50 text-amber-700':'bg-purple-50 text-purple-700'}`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="py-3 text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
-                    <td className="py-3">
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                        {u.isActive ? 'Active' : 'Suspended'}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <button onClick={() => toggleUser(u._id)}
-                        className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${u.isActive ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
-                        {u.isActive ? <><FiToggleLeft size={14} /> Suspend</> : <><FiToggleRight size={14} /> Activate</>}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+             <thead>
+  <tr className="text-left text-gray-400 text-xs border-b border-gray-100">
+    <th className="pb-3 font-medium">Name</th>
+    <th className="pb-3 font-medium">Email</th>
+    <th className="pb-3 font-medium">Role</th>
+    <th className="pb-3 font-medium">Joined</th>
+    <th className="pb-3 font-medium">Status</th>
+    <th className="pb-3 font-medium">Verified</th>
+    <th className="pb-3 font-medium">Action</th>
+  </tr>
+</thead>
+<tbody>
+  {users.map(u => (
+    <tr key={u._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      <td className="py-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold">{u.name?.[0]}</div>
+          <span className="font-medium text-gray-800">{u.name}</span>
+        </div>
+      </td>
+      <td className="py-3 text-gray-500">{u.email}</td>
+      <td className="py-3">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize
+          ${u.role==='donor'?'bg-green-50 text-green-700':u.role==='ngo'?'bg-blue-50 text-blue-700':u.role==='volunteer'?'bg-amber-50 text-amber-700':'bg-purple-50 text-purple-700'}`}>
+          {u.role}
+        </span>
+      </td>
+      <td className="py-3 text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
+      <td className="py-3">
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+          {u.isActive ? 'Active' : 'Suspended'}
+        </span>
+      </td>
+      <td className="py-3">
+        {u.role === 'volunteer' ? (
+          u.isVerified ? (
+            <span className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-green-50 text-green-700">
+              <FiShield size={12} /> Verified
+            </span>
+          ) : (
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-50 text-amber-700">
+              Pending
+            </span>
+          )
+        ) : (
+          <span className="text-xs text-gray-300">—</span>
+        )}
+      </td>
+      <td className="py-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => toggleUser(u._id)}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${u.isActive ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+            {u.isActive ? <><FiToggleLeft size={14} /> Suspend</> : <><FiToggleRight size={14} /> Activate</>}
+          </button>
+          {u.role === 'volunteer' && !u.isVerified && (
+            <button onClick={() => verifyVolunteer(u._id)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+              <FiShield size={14} /> Verify
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
             </table>
           </div>
         </div>

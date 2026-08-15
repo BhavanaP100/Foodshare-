@@ -25,6 +25,7 @@ const createColoredIcon = (color, emoji) => L.divIcon({
 });
 
 const FSM_TRANSITIONS = {
+  requested: { label: 'Accept This Delivery', next: 'accepted', color: '#3b82f6' },
   accepted: { label: 'Mark as Picked Up', next: 'picked_up', color: '#f59e0b' },
   picked_up: { label: 'Mark In Transit', next: 'in_transit', color: '#0ea5e9' },
   in_transit: { label: 'Mark as Delivered', next: 'delivered', color: '#22c55e' },
@@ -97,6 +98,19 @@ export default function DeliveryTracking() {
         lng: coords.longitude,
       });
     });
+  };
+
+  const reportSpoiled = async () => {
+    if (!window.confirm('Report this delivery as spoiled? This will end the delivery and mark the donation for recovery.')) return;
+    setUpdating(true);
+    try {
+      const { data } = await api.put('/tracking/spoiled', { donationId: id, note: 'Reported spoiled by volunteer' });
+      if (data.success) setLog(data.log);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to report');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   if (loading) return (
@@ -225,6 +239,18 @@ export default function DeliveryTracking() {
                   {updating ? 'Updating…' : transition.label}
                 </motion.button>
               )}
+
+              {['picked_up', 'in_transit'].includes(log.currentStatus) && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  onClick={reportSpoiled}
+                  disabled={updating}
+                  className="w-full py-3 rounded-xl text-red-600 font-medium text-sm border-2 border-red-200 bg-red-50"
+                >
+                  ⚠️ Report Spoiled / Can't Deliver
+                </motion.button>
+              )}
+
               {log.currentStatus === 'accepted' && (
                 <motion.button
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}

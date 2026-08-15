@@ -179,6 +179,25 @@ export function Spinner({ size = 8, color = '#22c55e' }) {
       style={{ borderTopColor: color }} />
   );
 }
+// ─── Recovery Recommendation Badge ───────────────────────────────
+export function RecoveryBadge({ option, reason }) {
+  const map = {
+    compost: { bg: '#dcfce7', color: '#15803d', icon: '🌱', label: 'Compost' },
+    animal_feed: { bg: '#fef3c7', color: '#92400e', icon: '🐄', label: 'Animal Feed' },
+    biogas: { bg: '#ede9fe', color: '#5b21b6', icon: '⚡', label: 'Biogas' },
+    discard_safely: { bg: '#f3f4f6', color: '#6b7280', icon: '🗑️', label: 'Safe Disposal' },
+  };
+  const s = map[option] || map.discard_safely;
+  return (
+    <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: s.bg }}>
+      <span className="text-lg leading-none">{s.icon}</span>
+      <div>
+        <div className="text-xs font-bold" style={{ color: s.color }}>Recommended: {s.label}</div>
+        {reason && <div className="text-xs mt-0.5" style={{ color: s.color, opacity: 0.85 }}>{reason}</div>}
+      </div>
+    </div>
+  );
+}
 
 // ─── Freshness Progress Bar ─────────────────────────────────────
 export function FreshnessBar({ score }) {
