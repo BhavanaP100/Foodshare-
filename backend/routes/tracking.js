@@ -7,11 +7,15 @@ const {
   updateLocation,
   getTrackingInfo,
   getVolunteerTasks,
+  reportSpoiled,
+  getRecommendedVolunteers,
 } = require('../controllers/trackingController');
 const { protect, authorize } = require('../middleware/auth');
 
+router.get('/recommend/:donationId', protect, authorize('ngo'), getRecommendedVolunteers);
 router.post('/assign', protect, authorize('ngo'), assignVolunteer);
 router.put('/status', protect, authorize('volunteer'), updateStatus);
+router.put('/spoiled', protect, authorize('volunteer'), reportSpoiled);
 router.put('/location', protect, authorize('volunteer'), updateLocation);
 router.get('/tasks', protect, authorize('volunteer'), getVolunteerTasks);
 router.get('/:donationId', protect, getTrackingInfo);

@@ -12,12 +12,11 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    
     role: {
-  type: String,
-  required: true,
-  enum: ['donor', 'ngo', 'volunteer', 'admin', 'customer'],
-},
+      type: String,
+      required: true,
+      enum: ['donor', 'ngo', 'volunteer', 'admin', 'customer'],
+    },
 
     phone: { type: String },
     address: { type: String },
@@ -56,6 +55,11 @@ const userSchema = new mongoose.Schema(
     // was silently dropped on every save. Added here to fix that.
     isAvailable: { type: Boolean, default: true },
 
+    // Volunteer verification — set true only by an admin after reviewing
+    // the volunteer (ID check, background, etc). Unverified volunteers
+    // cannot be assigned deliveries by an NGO.
+    isVerified: { type: Boolean, default: false },
+
     // Common profile fields
     avatar: { type: String },
 
@@ -91,4 +95,3 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 };
 
 module.exports = mongoose.model('User', userSchema);
-

@@ -1,6 +1,40 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
-const { calculateFreshness, smartMatchNGOs, rankDonationsForNGO, kgToMeals, kgToCO2Saved } = require('../utils/algorithms');
+const {
+  calculateFreshness,
+  smartMatchNGOs,
+  rankDonationsForNGO,
+  getRecoveryRecommendation,
+  kgToMeals,
+  kgToCO2Saved,
+} = require('../utils/algorithms');
+
+// Auto-expire a donation if its pickup deadline has passed and nobody ever
+// picked it up (still pending/matched/assigned). Attaches a recovery
+// recommendation. Called opportunistically on read — no cron job needed.
+const autoExpireIfNeeded = async (donation) => {
+  if (
+    ['pending', 'matched', 'assigned'].includes(donation.status) &&
+    new Date(donation.pickupDeadline).getTime() < Date.now()
+  ) {
+    const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+    const { option, reason } = getRecoveryRecommendation({
+      category: donation.category,
+      quantity: donation.quantity,
+      freshnessScore,
+    });
+
+    donation.status = 'expired';
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
+    donation.recoveryOption = option;
+    donation.recoveryReason = reason;
+    donation.spoiledAt = new Date();
+    donation.spoiledStage = 'missed_pickup';
+    await donation.save();
+  }
+  return donation;
+};
 
 // @route  POST /api/donations/add
 exports.addDonation = async (req, res) => {
@@ -13,10 +47,6 @@ exports.addDonation = async (req, res) => {
 
     const images = req.files ? req.files.map((f) => `/uploads/${f.filename}`) : [];
 
-    // Resolve pickup location: use what was submitted (this covers both the
-    // "use my saved default" case, where the frontend pre-fills the fields,
-    // and a one-time override). Fall back to the donor's saved default
-    // pickup location server-side as well, in case the client omitted it.
     const savedDefault = req.user.defaultPickupLocation;
     const resolvedLat = location?.lat ?? savedDefault?.lat;
     const resolvedLng = location?.lng ?? savedDefault?.lng;
@@ -41,7 +71,6 @@ exports.addDonation = async (req, res) => {
       },
     };
 
-    // Calculate freshness on creation
     const { freshnessScore, freshnessBadge } = calculateFreshness(donationData);
     donationData.freshnessScore = freshnessScore;
     donationData.freshnessBadge = freshnessBadge;
@@ -50,7 +79,6 @@ exports.addDonation = async (req, res) => {
 
     const donation = await Donation.create(donationData);
 
-    // Increment donor stats
     await User.findByIdAndUpdate(req.user._id, { $inc: { totalDonations: 1 } });
 
     res.status(201).json({ success: true, donation });
@@ -67,11 +95,17 @@ exports.getMyDonations = async (req, res) => {
       .populate('assignedVolunteer', 'name rating')
       .sort({ createdAt: -1 });
 
-    // Refresh freshness scores
-    const updated = donations.map((d) => {
+    const updated = [];
+    for (const d of donations) {
+      await autoExpireIfNeeded(d);
       const { freshnessScore, freshnessBadge } = calculateFreshness(d);
-      return { ...d.toObject(), freshnessScore, freshnessBadge };
-    });
+      // Don't overwrite a freshly-set 'expired' state's score/badge
+      if (d.status !== 'expired') {
+        updated.push({ ...d.toObject(), freshnessScore, freshnessBadge });
+      } else {
+        updated.push(d.toObject());
+      }
+    }
 
     res.json({ success: true, donations: updated });
   } catch (err) {
@@ -81,15 +115,13 @@ exports.getMyDonations = async (req, res) => {
 
 // @route  GET /api/donations/available
 // For NGOs - see available (pending) donations, ranked per-NGO by distance,
-// this NGO's capacity fit, and each donation's live-recalculated freshness/urgency.
+// this NGO's capacity fit, freshness/urgency, pickup urgency, NGO demand,
+// and platform-wide volunteer availability.
 exports.getAvailableDonations = async (req, res) => {
   try {
     const { category, isVeg, maxDistance = 20 } = req.query;
     const ngo = req.user;
 
-    // NGO must have a saved location (set at registration or in Settings)
-    // for distance-based matching to work. Without this the query below
-    // would throw trying to destructure undefined coordinates.
     if (!ngo.location?.coordinates || ngo.location.coordinates.length < 2) {
       return res.status(400).json({
         success: false,
@@ -102,18 +134,45 @@ exports.getAvailableDonations = async (req, res) => {
     if (category) filter.category = category;
     if (typeof isVeg !== 'undefined') filter.isVeg = isVeg === 'true';
 
-    const donations = await Donation.find(filter).populate('donor', 'name phone address');
+    let donations = await Donation.find(filter).populate('donor', 'name phone address');
 
-    // Weighted ranking (distance + this NGO's capacity fit + freshness/urgency),
-    // freshness is recalculated live for every donation as part of this call.
-    const ranked = rankDonationsForNGO(ngo, donations, parseFloat(maxDistance));
+    // Expire any that slipped past deadline before we rank them, so they
+    // don't show as "available" and disappear from other lists silently.
+    const stillPending = [];
+    for (const d of donations) {
+      await autoExpireIfNeeded(d);
+      if (d.status === 'pending') stillPending.push(d);
+    }
+    donations = stillPending;
 
-    const enriched = ranked.map(({ donation, distance, freshnessScore, freshnessBadge, urgencyLevel, matchScore }) => ({
+    // NGO demand — fewer active commitments relative to capacity = higher
+    // demand score (more room to take on new donations).
+    const activeCount = await Donation.countDocuments({
+      matchedNGO: ngo._id,
+      status: { $in: ['matched', 'assigned', 'picked_up', 'in_transit'] },
+    });
+    const ngoDemandScore = Math.max(0, Math.min(100, 100 - activeCount * 15));
+
+    // Volunteer availability — platform-wide count of verified + available
+    // volunteers (not geo-filtered; volunteers don't currently save a location).
+    const availableVolunteerCount = await User.countDocuments({
+      role: 'volunteer', isActive: true, isAvailable: true, isVerified: true,
+    });
+    const volunteerAvailabilityScore = Math.min(100, availableVolunteerCount * 20);
+
+    const ranked = rankDonationsForNGO(ngo, donations, {
+      maxDistance: parseFloat(maxDistance),
+      ngoDemandScore,
+      volunteerAvailabilityScore,
+    });
+
+    const enriched = ranked.map(({ donation, distance, freshnessScore, freshnessBadge, urgencyLevel, pickupUrgencyScore, matchScore }) => ({
       ...donation.toObject(),
       distance,
       freshnessScore,
       freshnessBadge,
       urgencyLevel,
+      pickupUrgencyScore,
       matchScore,
     }));
 
@@ -124,23 +183,26 @@ exports.getAvailableDonations = async (req, res) => {
 };
 
 // @route  GET /api/donations/late-night
-// Late-night view should show ALL pending donations during the active window (22:00–05:00).
 exports.getLateNightDonations = async (req, res) => {
   try {
     const now = new Date();
     const hour = now.getHours();
     const isLateNight = hour >= 22 || hour < 5;
 
-    // Show all pending donations while late-night mode is active.
-    // (Frontend can categorize by freshnessBadge/urgencyLevel.)
     if (!isLateNight) {
       return res.json({ success: true, donations: [], isLateNight });
     }
 
-    const donations = await Donation.find({ status: 'pending' })
+    let donations = await Donation.find({ status: 'pending' })
       .populate('donor', 'name phone address')
       .sort({ createdAt: -1 });
 
+    const stillPending = [];
+    for (const d of donations) {
+      await autoExpireIfNeeded(d);
+      if (d.status === 'pending') stillPending.push(d);
+    }
+    donations = stillPending;
 
     const enriched = donations.map((d) => {
       const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(d);
@@ -163,6 +225,58 @@ exports.acceptDonation = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Donation already claimed' });
     }
 
+    const ngo = req.user;
+
+    // Capacity-based split: if the donation's quantity exceeds this NGO's
+    // capacity, spin off the remainder as a new pending donation (same
+    // donor/details) so other NGOs can claim it, and cap this donation's
+    // quantity to what this NGO can actually take.
+    if (ngo.role === 'ngo' && donation.quantity > ngo.capacity) {
+      const originalQuantity = donation.quantity;
+      const remainingQty = originalQuantity - ngo.capacity;
+
+      const remainderData = {
+        donor: donation.donor,
+        foodName: donation.foodName,
+        category: donation.category,
+        isVeg: donation.isVeg,
+        quantity: remainingQty,
+        quantityUnit: donation.quantityUnit,
+        cookedTime: donation.cookedTime,
+        storageCondition: donation.storageCondition,
+        pickupDeadline: donation.pickupDeadline,
+        pickupAddress: donation.pickupAddress,
+        location: donation.location,
+        description: donation.description,
+        images: donation.images,
+        status: 'pending',
+        mealsEquivalent: kgToMeals(remainingQty),
+        co2Saved: kgToCO2Saved(remainingQty),
+        wasSplit: true,
+        originalQuantity,
+      };
+      const { freshnessScore: rfs, freshnessBadge: rfb } = calculateFreshness(remainderData);
+      remainderData.freshnessScore = rfs;
+      remainderData.freshnessBadge = rfb;
+      await Donation.create(remainderData);
+
+      donation.wasSplit = true;
+      donation.originalQuantity = originalQuantity;
+      donation.quantity = ngo.capacity;
+      donation.mealsEquivalent = kgToMeals(ngo.capacity);
+      donation.co2Saved = kgToCO2Saved(ngo.capacity);
+    }
+
+    // Re-evaluate freshness at the moment of NGO acceptance and snapshot it.
+    const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
+    donation.freshnessAtAcceptance = {
+      score: freshnessScore,
+      badge: freshnessBadge,
+      recordedAt: new Date(),
+    };
+
     donation.status = 'matched';
     donation.matchedNGO = req.user._id;
     await donation.save();
@@ -181,13 +295,17 @@ exports.getAllDonations = async (req, res) => {
     if (status) filter.status = status;
 
     const total = await Donation.countDocuments(filter);
-    const donations = await Donation.find(filter)
+    let donations = await Donation.find(filter)
       .populate('donor', 'name email')
       .populate('matchedNGO', 'name ngoName')
       .populate('assignedVolunteer', 'name')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
+
+    for (const d of donations) {
+      await autoExpireIfNeeded(d);
+    }
 
     res.json({ success: true, total, page: parseInt(page), donations });
   } catch (err) {
@@ -204,6 +322,8 @@ exports.getDonationById = async (req, res) => {
       .populate('assignedVolunteer', 'name phone rating');
 
     if (!donation) return res.status(404).json({ success: false, message: 'Not found' });
+
+    await autoExpireIfNeeded(donation);
 
     const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(donation);
     res.json({ success: true, donation: { ...donation.toObject(), freshnessScore, freshnessBadge, urgencyLevel } });

@@ -33,4 +33,31 @@ router.put('/users/:id/toggle', protect, authorize('admin'), async (req, res) =>
   }
 });
 
+// Get all volunteers pending verification
+router.get('/volunteers/pending', protect, authorize('admin'), async (req, res) => {
+  try {
+    const volunteers = await User.find({ role: 'volunteer', isVerified: false })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    res.json({ success: true, volunteers });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Verify a volunteer — required before they can be assigned deliveries
+router.put('/volunteers/:id/verify', protect, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || user.role !== 'volunteer') {
+      return res.status(404).json({ success: false, message: 'Volunteer not found' });
+    }
+    user.isVerified = true;
+    await user.save();
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

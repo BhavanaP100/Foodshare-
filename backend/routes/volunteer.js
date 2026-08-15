@@ -1,4 +1,3 @@
-// routes/volunteer.js
 const express = require('express');
 const router = express.Router();
 const { getVolunteerTasks } = require('../controllers/trackingController');
@@ -21,7 +20,8 @@ router.get('/leaderboard', protect, async (req, res) => {
 
 router.get('/available', protect, authorize('ngo', 'admin'), async (req, res) => {
   try {
-    const volunteers = await User.find({ role: 'volunteer', isActive: true, isAvailable: true })
+    // Only verified volunteers should be offered for assignment.
+    const volunteers = await User.find({ role: 'volunteer', isActive: true, isAvailable: true, isVerified: true })
       .select('name phone rating completedDeliveries location')
       .sort({ rating: -1 });
     res.json({ success: true, volunteers });
