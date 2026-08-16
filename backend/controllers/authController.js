@@ -66,6 +66,7 @@ exports.register = async (req, res) => {
         capacity: user.capacity,
         defaultPickupLocation: user.defaultPickupLocation,
         isAvailable: user.isAvailable,
+        isVerified: user.isVerified,
       },
     });
   } catch (err) {
@@ -106,6 +107,7 @@ exports.login = async (req, res) => {
         capacity: user.capacity,
         defaultPickupLocation: user.defaultPickupLocation,
         isAvailable: user.isAvailable,
+        isVerified: user.isVerified,
         totalDonations: user.totalDonations,
         completedDeliveries: user.completedDeliveries,
         rating: user.rating,

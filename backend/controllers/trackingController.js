@@ -1,7 +1,43 @@
 const DeliveryLog = require('../models/DeliveryLog');
 const Donation = require('../models/Donation');
 const User = require('../models/User');
-const { isValidTransition, kgToMeals } = require('../utils/algorithms');
+const { isValidTransition, rankVolunteersForDonation } = require('../utils/algorithms');
+
+// @route  GET /api/tracking/recommend/:donationId  (NGO only)
+// Rule-based volunteer recommendation for a specific accepted donation.
+// NOT "give it to the highest-rated volunteer" -- ranks every eligible
+// (active + available + verified) volunteer by distance to the pickup
+// location first, rating as a secondary tie-breaker, and returns an
+// explainable reasons[] per candidate. The NGO still chooses who to assign.
+exports.recommendVolunteers = async (req, res) => {
+  try {
+    const donation = await Donation.findById(req.params.donationId);
+    if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
+    if (donation.matchedNGO?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'You did not accept this donation' });
+    }
+
+    const volunteers = await User.find({ role: 'volunteer', isActive: true });
+    const ranked = rankVolunteersForDonation(donation, volunteers);
+
+    const recommendations = ranked.map(({ volunteer, distance, score, reasons }) => ({
+      volunteer: {
+        _id: volunteer._id,
+        name: volunteer.name,
+        phone: volunteer.phone,
+        rating: volunteer.rating,
+        completedDeliveries: volunteer.completedDeliveries,
+      },
+      distance,
+      score,
+      reasons,
+    }));
+
+    res.json({ success: true, recommendations });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // @route  POST /api/tracking/assign  (NGO assigns volunteer)
 exports.assignVolunteer = async (req, res) => {
@@ -10,6 +46,26 @@ exports.assignVolunteer = async (req, res) => {
 
     const donation = await Donation.findById(donationId);
     if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
+    if (donation.matchedNGO?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'You did not accept this donation' });
+    }
+    if (donation.status !== 'matched') {
+      return res.status(400).json({ success: false, message: 'This donation is not awaiting volunteer assignment' });
+    }
+
+    // Safety check: don't allow assigning someone who isn't actually an
+    // eligible volunteer, even if the NGO bypasses the recommendation UI
+    // and posts an arbitrary ID directly.
+    const volunteer = await User.findById(volunteerId);
+    if (!volunteer || volunteer.role !== 'volunteer' || !volunteer.isActive) {
+      return res.status(400).json({ success: false, message: 'Invalid volunteer' });
+    }
+    if (!volunteer.isAvailable) {
+      return res.status(400).json({ success: false, message: 'This volunteer is not currently available' });
+    }
+    if (!volunteer.isVerified) {
+      return res.status(400).json({ success: false, message: 'This volunteer is not yet verified for pickups' });
+    }
 
     donation.assignedVolunteer = volunteerId;
     donation.status = 'assigned';
@@ -27,6 +83,41 @@ exports.assignVolunteer = async (req, res) => {
     // Notify via socket
     const io = req.app.get('io');
     io.to(`donation_${donationId}`).emit('status_update', { status: 'requested', log });
+
+    res.json({ success: true, log });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  POST /api/tracking/reject  (volunteer declines an assigned task)
+// The existing FSM only ever moved forward (requested -> accepted -> ...);
+// there was no way for a volunteer to actually decline. This reverts the
+// donation to 'matched' so the NGO can pick a different volunteer, and
+// marks the DeliveryLog 'rejected' rather than silently deleting history.
+exports.rejectTask = async (req, res) => {
+  try {
+    const { donationId, reason } = req.body;
+
+    const log = await DeliveryLog.findOne({ donation: donationId, volunteer: req.user._id });
+    if (!log) return res.status(404).json({ success: false, message: 'Delivery log not found' });
+    if (log.currentStatus !== 'requested') {
+      return res.status(400).json({ success: false, message: 'This task can no longer be declined' });
+    }
+
+    log.currentStatus = 'rejected';
+    log.statusHistory.push({ status: 'rejected', timestamp: new Date(), note: reason });
+    await log.save();
+
+    const donation = await Donation.findById(donationId);
+    if (donation && donation.status === 'assigned') {
+      donation.status = 'matched';
+      donation.assignedVolunteer = undefined;
+      await donation.save();
+    }
+
+    const io = req.app.get('io');
+    io.to(`donation_${donationId}`).emit('status_update', { status: 'rejected', log });
 
     res.json({ success: true, log });
   } catch (err) {
@@ -127,7 +218,7 @@ exports.getVolunteerTasks = async (req, res) => {
   try {
     const active = await DeliveryLog.find({
       volunteer: req.user._id,
-      currentStatus: { $nin: ['verified'] },
+      currentStatus: { $nin: ['verified', 'rejected'] },
     })
       .populate('donation')
       .populate('donor', 'name phone address')

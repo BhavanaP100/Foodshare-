@@ -42,9 +42,21 @@ const donationSchema = new mongoose.Schema(
     },
 
     matchedNGO: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    matchedAt: { type: Date }, // when the NGO accepted this donation
     assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     mealsEquivalent: { type: Number, default: 0 },
     co2Saved: { type: Number, default: 0 }, // kg
+
+    // Rule-based recovery recommendation -- set when a donation can no
+    // longer be safely redistributed (freshness hit 0 / deadline passed
+    // while still pending). This is a RECOMMENDATION only; the platform
+    // does not claim to physically route food anywhere.
+    recoveryRecommendation: {
+      needed: { type: Boolean, default: false },
+      pathway: { type: String }, // e.g. 'Composting', 'Biogas / Anaerobic Digestion'
+      reason: { type: String },
+      recommendedAt: { type: Date },
+    },
   },
   { timestamps: true }
 );

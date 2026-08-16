@@ -21,8 +21,8 @@ router.get('/leaderboard', protect, async (req, res) => {
 
 router.get('/available', protect, authorize('ngo', 'admin'), async (req, res) => {
   try {
-    const volunteers = await User.find({ role: 'volunteer', isActive: true, isAvailable: true })
-      .select('name phone rating completedDeliveries location')
+    const volunteers = await User.find({ role: 'volunteer', isActive: true, isAvailable: true, isVerified: true })
+      .select('name phone rating completedDeliveries location isVerified')
       .sort({ rating: -1 });
     res.json({ success: true, volunteers });
   } catch (err) {

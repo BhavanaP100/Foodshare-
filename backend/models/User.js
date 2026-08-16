@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
     role: {
   type: String,
   required: true,
-  enum: ['donor', 'ngo', 'volunteer', 'admin', 'customer'],
+  enum: ['donor', 'ngo', 'volunteer', 'admin'],
 },
 
     phone: { type: String },
@@ -55,6 +55,12 @@ const userSchema = new mongoose.Schema(
     // authController.updateProfile but was missing from the schema, so it
     // was silently dropped on every save. Added here to fix that.
     isAvailable: { type: Boolean, default: true },
+
+    // Volunteer trust/safety verification (food handling). Admin-controlled.
+    // Only isVerified + isAvailable volunteers are recommended for pickup.
+    // This is NOT a legal food-handler certification -- just an in-app
+    // admin sign-off.
+    isVerified: { type: Boolean, default: false },
 
     // Common profile fields
     avatar: { type: String },

@@ -33,4 +33,20 @@ router.put('/users/:id/toggle', protect, authorize('admin'), async (req, res) =>
   }
 });
 
+// Toggle volunteer verification status (food-handling trust/safety sign-off)
+router.put('/users/:id/verify', protect, authorize('admin'), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Not found' });
+    if (user.role !== 'volunteer') {
+      return res.status(400).json({ success: false, message: 'Only volunteers can be verified' });
+    }
+    user.isVerified = !user.isVerified;
+    await user.save();
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

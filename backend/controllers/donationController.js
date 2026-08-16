@@ -1,6 +1,27 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
-const { calculateFreshness, smartMatchNGOs, rankDonationsForNGO, kgToMeals, kgToCO2Saved } = require('../utils/algorithms');
+const {
+  calculateFreshness, smartMatchNGOs, rankDonationsForNGO,
+  getRecoveryRecommendation, haversineDistance, kgToMeals, kgToCO2Saved,
+} = require('../utils/algorithms');
+
+// A 'pending' donation whose freshness has fully decayed to 0 (or whose
+// pickup deadline has passed) can no longer be safely redistributed.
+// Lazily flip it to 'expired' with a recovery recommendation the first
+// time anyone fetches it, rather than requiring a cron job. Best-effort:
+// failures here don't block the response to the caller.
+const maybeExpireDonation = async (donationDoc, freshnessScore) => {
+  if (donationDoc.status !== 'pending' || freshnessScore > 0) return false;
+  try {
+    const { pathway, reason } = getRecoveryRecommendation(donationDoc);
+    donationDoc.status = 'expired';
+    donationDoc.recoveryRecommendation = { needed: true, pathway, reason, recommendedAt: new Date() };
+    await donationDoc.save();
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // @route  POST /api/donations/add
 exports.addDonation = async (req, res) => {
@@ -67,11 +88,13 @@ exports.getMyDonations = async (req, res) => {
       .populate('assignedVolunteer', 'name rating')
       .sort({ createdAt: -1 });
 
-    // Refresh freshness scores
-    const updated = donations.map((d) => {
+    // Refresh freshness scores live, and flag anything that's fully
+    // decayed while still pending with a recovery recommendation.
+    const updated = await Promise.all(donations.map(async (d) => {
       const { freshnessScore, freshnessBadge } = calculateFreshness(d);
+      await maybeExpireDonation(d, freshnessScore);
       return { ...d.toObject(), freshnessScore, freshnessBadge };
-    });
+    }));
 
     res.json({ success: true, donations: updated });
   } catch (err) {
@@ -104,9 +127,18 @@ exports.getAvailableDonations = async (req, res) => {
 
     const donations = await Donation.find(filter).populate('donor', 'name phone address');
 
+    // Recompute freshness live and drop anything that's fully decayed
+    // (auto-expired with a recovery recommendation) before ranking.
+    const stillValid = [];
+    for (const d of donations) {
+      const { freshnessScore } = calculateFreshness(d);
+      const expired = await maybeExpireDonation(d, freshnessScore);
+      if (!expired) stillValid.push(d);
+    }
+
     // Weighted ranking (distance + this NGO's capacity fit + freshness/urgency),
     // freshness is recalculated live for every donation as part of this call.
-    const ranked = rankDonationsForNGO(ngo, donations, parseFloat(maxDistance));
+    const ranked = rankDonationsForNGO(ngo, stillValid, parseFloat(maxDistance));
 
     const enriched = ranked.map(({ donation, distance, freshnessScore, freshnessBadge, urgencyLevel, matchScore }) => ({
       ...donation.toObject(),
@@ -163,11 +195,68 @@ exports.acceptDonation = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Donation already claimed' });
     }
 
+    // Re-evaluate freshness using CURRENT time right before acceptance --
+    // the NGO must not be able to accept using a stale/outdated freshness
+    // state from whenever the list was last fetched.
+    const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+    if (freshnessScore <= 0) {
+      const { pathway, reason } = getRecoveryRecommendation(donation);
+      donation.status = 'expired';
+      donation.freshnessScore = 0;
+      donation.freshnessBadge = 'Critical';
+      donation.recoveryRecommendation = { needed: true, pathway, reason, recommendedAt: new Date() };
+      await donation.save();
+      return res.status(409).json({
+        success: false,
+        code: 'DONATION_EXPIRED',
+        message: 'This donation is no longer suitable for redistribution — it expired between listing and acceptance.',
+        recoveryRecommendation: donation.recoveryRecommendation,
+      });
+    }
+
     donation.status = 'matched';
     donation.matchedNGO = req.user._id;
+    donation.matchedAt = new Date();
+    // Persist the just-recalculated freshness too, so anyone viewing this
+    // donation afterward sees the value it was actually accepted at.
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
     await donation.save();
 
     res.json({ success: true, donation });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  GET /api/donations/accepted
+// For NGOs - every donation THEY accepted (matchedNGO === self), at any
+// stage of the pipeline (matched/assigned/picked_up/in_transit/delivered/
+// verified). Deliberately separate from /available, which only ever
+// returns status:'pending' donations from all donors -- an accepted
+// donation would otherwise have nowhere to persist on the NGO's side.
+exports.getAcceptedDonations = async (req, res) => {
+  try {
+    const ngo = req.user;
+
+    const donations = await Donation.find({ matchedNGO: ngo._id })
+      .populate('donor', 'name phone address')
+      .populate('assignedVolunteer', 'name phone rating isVerified')
+      .sort({ createdAt: -1 });
+
+    const hasNGOLocation = ngo.location?.coordinates?.length === 2;
+    const [ngoLng, ngoLat] = hasNGOLocation ? ngo.location.coordinates : [];
+
+    const enriched = donations.map((d) => {
+      let distance;
+      if (hasNGOLocation && d.location?.coordinates?.length === 2) {
+        const [donLng, donLat] = d.location.coordinates;
+        distance = haversineDistance(ngoLat, ngoLng, donLat, donLng);
+      }
+      return { ...d.toObject(), distance };
+    });
+
+    res.json({ success: true, donations: enriched });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
