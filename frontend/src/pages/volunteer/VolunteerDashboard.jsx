@@ -115,8 +115,11 @@ export default function VolunteerDashboard() {
                     </div>
                     <Link to={`/volunteer/track/${task.donation?._id}`}>
                       <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                        className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
-                        Track <FiArrowRight size={13} />
+                        className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg"
+                        style={task.currentStatus === 'requested'
+                          ? { color: '#fff', background: '#22c55e' }
+                          : { color: '#1d4ed8', background: '#eff6ff' }}>
+                        {task.currentStatus === 'requested' ? 'Respond' : 'Track'} <FiArrowRight size={13} />
                       </motion.button>
                     </Link>
                   </div>

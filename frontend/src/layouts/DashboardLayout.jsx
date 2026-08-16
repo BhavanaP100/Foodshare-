@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import {
   FiGrid, FiPlusCircle, FiPackage, FiMapPin, FiBarChart2,
-  FiMoon, FiLogOut, FiMenu, FiX, FiUser, FiBell, FiSettings
+  FiMoon, FiLogOut, FiMenu, FiX, FiUser, FiBell, FiSettings, FiCheckSquare
 } from 'react-icons/fi';
 
 const NAV_BY_ROLE = {
@@ -17,6 +17,7 @@ const NAV_BY_ROLE = {
   ngo: [
     { label: 'Dashboard', icon: FiGrid, path: '/ngo' },
     { label: 'Available Food', icon: FiPackage, path: '/ngo/donations' },
+    { label: 'Accepted Donations', icon: FiCheckSquare, path: '/ngo/accepted' },
     { label: 'Impact', icon: FiBarChart2, path: '/impact' },
    
   ],

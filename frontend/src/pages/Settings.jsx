@@ -29,6 +29,9 @@ export default function Settings() {
     defaultPickupLocation: user?.defaultPickupLocation || { name: '', address: '', lat: '', lng: '' },
     // Volunteer
     isAvailable: user?.isAvailable ?? true,
+    volunteerLocation: user?.location?.coordinates
+      ? { address: user.address || '', lat: user.location.coordinates[1], lng: user.location.coordinates[0] }
+      : { address: user?.address || '', lat: '', lng: '' },
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -64,6 +67,10 @@ export default function Settings() {
 
       if (user?.role === 'volunteer') {
         payload.isAvailable = form.isAvailable;
+        if (form.volunteerLocation.lat && form.volunteerLocation.lng) {
+          payload.location = { lat: form.volunteerLocation.lat, lng: form.volunteerLocation.lng };
+          payload.address = form.volunteerLocation.address || form.address;
+        }
       }
 
       const { data } = await api.put('/auth/profile', payload);
@@ -127,7 +134,7 @@ export default function Settings() {
                   <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
                   <input value={user?.email || ''} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
                 </div>
-                {user?.role !== 'donor' && user?.role !== 'ngo' && (
+                {user?.role !== 'donor' && user?.role !== 'ngo' && user?.role !== 'volunteer' && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">Address</label>
                     <div className="relative">
@@ -194,11 +201,24 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Volunteer: availability */}
+            {/* Volunteer: availability + verification + base location */}
             {user?.role === 'volunteer' && (
               <div className={cardClass} style={cardStyle}>
-                <h3 className="font-semibold text-gray-800 mb-4 text-sm">Availability</h3>
-                <div className="flex gap-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-800 text-sm">Availability</h3>
+                  {user?.isVerified ? (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Verified</span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>Pending Verification</span>
+                  )}
+                </div>
+                {!user?.isVerified && (
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 mb-4">
+                    An admin needs to verify your account before you'll be recommended to NGOs for pickups. This isn't a legal
+                    food-handler certification — just an in-app trust check.
+                  </p>
+                )}
+                <div className="flex gap-3 mb-5">
                   {[{ v: true, l: '🟢 Available for deliveries' }, { v: false, l: '⏸️ Not available right now' }].map(({ v, l }) => (
                     <button
                       type="button" key={String(v)}
@@ -209,6 +229,15 @@ export default function Settings() {
                     </button>
                   ))}
                 </div>
+                <h3 className="font-semibold text-gray-800 mb-1 text-sm">Your Base Location</h3>
+                <p className="text-xs text-gray-400 mb-4">
+                  Used to recommend you for pickups near you. Without this, NGOs can still see you but won't know your distance.
+                </p>
+                <LocationPicker
+                  value={form.volunteerLocation}
+                  onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
+                  addressLabel="Your Area / Address"
+                />
               </div>
             )}
 

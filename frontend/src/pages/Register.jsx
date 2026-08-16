@@ -10,7 +10,6 @@ const ROLES = [
   { value: 'donor', label: 'Food Donor', icon: '📦', desc: 'Share surplus food from restaurants, homes, or events', color: '#22c55e' },
   { value: 'ngo', label: 'NGO / Shelter', icon: '🏠', desc: 'Receive food donations for your community', color: '#0ea5e9' },
   { value: 'volunteer', label: 'Volunteer', icon: '🚴', desc: 'Pick up and deliver food to those in need', color: '#f59e0b' },
-   {value: 'customer', label: 'Need Food', icon: '🍽️', desc: 'Find and request available food near you', color: '#ef4444' }
 ];
 
 export default function Register() {
@@ -23,12 +22,13 @@ export default function Register() {
     name: '', email: '', password: '', role: '', phone: '', address: '', ngoName: '', registrationNumber: '',
     ngoLocation: { address: '', lat: '', lng: '' },
     defaultPickupLocation: { name: '', address: '', lat: '', lng: '' },
+    volunteerLocation: { address: '', lat: '', lng: '' },
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
 
-  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer', customer: '/late-night' };
+  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer' };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,6 +54,11 @@ export default function Register() {
 
       if (form.role === 'donor' && form.defaultPickupLocation.lat && form.defaultPickupLocation.lng) {
         payload.defaultPickupLocation = form.defaultPickupLocation;
+      }
+
+      if (form.role === 'volunteer' && form.volunteerLocation.lat && form.volunteerLocation.lng) {
+        payload.location = { lat: form.volunteerLocation.lat, lng: form.volunteerLocation.lng };
+        payload.address = form.volunteerLocation.address || form.address;
       }
 
       const data = await register(payload);
@@ -201,6 +206,21 @@ export default function Register() {
                           value={form.defaultPickupLocation}
                           onChange={(loc) => setForm({ ...form, defaultPickupLocation: { ...form.defaultPickupLocation, ...loc } })}
                           addressLabel="Pickup Address"
+                        />
+                      </div>
+                    )}
+
+                    {form.role === 'volunteer' && (
+                      <div className="col-span-2 pt-2">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Your Base Location (optional)</p>
+                        <p className="text-xs text-gray-400 mb-3">
+                          Helps NGOs recommend you for pickups near you. You can skip this and add it later in Settings,
+                          but you won't show up in distance-based recommendations until it's set.
+                        </p>
+                        <LocationPicker
+                          value={form.volunteerLocation}
+                          onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
+                          addressLabel="Your Area / Address"
                         />
                       </div>
                     )}

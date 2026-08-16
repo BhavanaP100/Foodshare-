@@ -25,6 +25,7 @@ const createColoredIcon = (color, emoji) => L.divIcon({
 });
 
 const FSM_TRANSITIONS = {
+  requested: { label: 'Accept Task', next: 'accepted', color: '#22c55e' },
   accepted: { label: 'Mark as Picked Up', next: 'picked_up', color: '#f59e0b' },
   picked_up: { label: 'Mark In Transit', next: 'in_transit', color: '#0ea5e9' },
   in_transit: { label: 'Mark as Delivered', next: 'delivered', color: '#22c55e' },
@@ -84,6 +85,20 @@ export default function DeliveryTracking() {
       alert(err.response?.data?.message || 'Update failed');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const [rejecting, setRejecting] = useState(false);
+  const declineTask = async () => {
+    if (!window.confirm('Decline this task? The NGO will need to assign a different volunteer.')) return;
+    setRejecting(true);
+    try {
+      const { data } = await api.post('/tracking/reject', { donationId: id });
+      if (data.success) setLog(data.log);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to decline');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -225,6 +240,16 @@ export default function DeliveryTracking() {
                   {updating ? 'Updating…' : transition.label}
                 </motion.button>
               )}
+              {log.currentStatus === 'requested' && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  onClick={declineTask}
+                  disabled={rejecting}
+                  className="w-full py-3 rounded-xl text-red-500 font-medium text-sm border-2 border-red-100 bg-red-50 disabled:opacity-50"
+                >
+                  {rejecting ? 'Declining…' : '✕ Decline This Task'}
+                </motion.button>
+              )}
               {log.currentStatus === 'accepted' && (
                 <motion.button
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
@@ -237,6 +262,11 @@ export default function DeliveryTracking() {
               {log.currentStatus === 'verified' && (
                 <div className="text-center py-4 text-green-600 font-semibold">
                   🎉 Delivery Verified! Great work!
+                </div>
+              )}
+              {log.currentStatus === 'rejected' && (
+                <div className="text-center py-4 text-red-500 font-semibold text-sm">
+                  You declined this task. The NGO has been notified to reassign it.
                 </div>
               )}
             </div>
