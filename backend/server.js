@@ -37,9 +37,14 @@ io.on('connection', (socket) => {
   socket.on('join_room', (room) => socket.join(room));
 
   // Volunteer joins their personal notification room so they can be
-  // notified the moment an NGO assigns them a delivery, even if they're
-  // sitting on their dashboard rather than a specific tracking page.
+  // notified the moment an NGO assigns them a delivery.
   socket.on('join_volunteer_room', (volunteerId) => socket.join(`volunteer_${volunteerId}`));
+
+  // NGO joins their personal notification room so they can be notified the
+  // moment a volunteer marks a delivery as "delivered" and it's awaiting
+  // their review/verification — even if they're on their dashboard, not
+  // the specific tracking page.
+  socket.on('join_ngo_room', (ngoId) => socket.join(`ngo_${ngoId}`));
 
   socket.on('update_location', ({ donationId, location }) => {
     io.to(`donation_${donationId}`).emit('location_update', location);
