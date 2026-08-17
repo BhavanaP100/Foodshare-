@@ -7,6 +7,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import DonorDashboard from './pages/donor/DonorDashboard';
 import AddFood from './pages/donor/AddFood';
+import CompletedDonations from './pages/donor/CompletedDonations';
+import ExpiredDonations from './pages/donor/ExpiredDonations';
 import NGODashboard from './pages/ngo/NGODashboard';
 import AvailableDonations from './pages/ngo/AvailableDonations';
 import VolunteerDashboard from './pages/volunteer/VolunteerDashboard';
@@ -16,7 +18,6 @@ import ImpactDashboard from './pages/ImpactDashboard';
 import LateNightRescue from './pages/LateNightRescue';
 import Settings from './pages/Settings';
 
-// Protected route wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center text-green-600 text-lg">Loading…</div>;
@@ -39,6 +40,8 @@ export default function App() {
       {/* Donor */}
       <Route path="/donor" element={<ProtectedRoute allowedRoles={['donor']}><DonorDashboard /></ProtectedRoute>} />
       <Route path="/donor/add" element={<ProtectedRoute allowedRoles={['donor']}><AddFood /></ProtectedRoute>} />
+      <Route path="/donor/completed" element={<ProtectedRoute allowedRoles={['donor']}><CompletedDonations /></ProtectedRoute>} />
+      <Route path="/donor/expired" element={<ProtectedRoute allowedRoles={['donor']}><ExpiredDonations /></ProtectedRoute>} />
 
       {/* NGO */}
       <Route path="/ngo" element={<ProtectedRoute allowedRoles={['ngo']}><NGODashboard /></ProtectedRoute>} />

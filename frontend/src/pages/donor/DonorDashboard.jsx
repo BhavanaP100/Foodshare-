@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiPlusCircle, FiPackage, FiTrendingUp, FiClock, FiHeart, FiArrowRight } from 'react-icons/fi';
+import { FiPlusCircle, FiPackage, FiTrendingUp, FiClock, FiHeart, FiArrowRight, FiCheckCircle, FiAlertTriangle } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
-
-import { StatCard, FoodCard, SectionHeader, EmptyState, Spinner, RecoveryBadge } from '../../components/common/UIComponents';
+import { StatCard, FoodCard, SectionHeader, EmptyState, Spinner } from '../../components/common/UIComponents';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
@@ -24,6 +23,7 @@ export default function DonorDashboard() {
 
   const active = donations.filter(d => ['pending', 'matched', 'assigned', 'picked_up', 'in_transit'].includes(d.status));
   const completed = donations.filter(d => d.status === 'verified');
+  const expired = donations.filter(d => d.status === 'expired');
   const totalMeals = donations.reduce((s, d) => s + (d.mealsEquivalent || 0), 0);
 
   return (
@@ -53,12 +53,16 @@ export default function DonorDashboard() {
         </Link>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid — each links to its own dedicated section */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon="📦" label="Total Donations" value={donations.length} sub="All time" delay={0} />
         <StatCard icon="🔄" label="Active Posts" value={active.length} sub="Live" color="#0ea5e9" delay={0.1} />
-        <StatCard icon="🍽️" label="Meals Donated" value={totalMeals} sub="Est." color="#f59e0b" delay={0.2} />
-        <StatCard icon="✅" label="Completed" value={completed.length} sub="Verified" color="#8b5cf6" delay={0.3} />
+        <Link to="/donor/completed">
+          <StatCard icon="✅" label="Donated Food" value={completed.length} sub="Verified" color="#8b5cf6" delay={0.2} />
+        </Link>
+        <Link to="/donor/expired">
+          <StatCard icon="⚠️" label="Expired Food" value={expired.length} sub="Needs recovery" color="#ef4444" delay={0.3} />
+        </Link>
       </div>
 
       {/* Quick Actions */}
@@ -86,12 +90,11 @@ export default function DonorDashboard() {
         ))}
       </div>
 
-
-      {/* Recent Donations */}
+      {/* Active Donations only — completed/expired now live in their own sidebar sections */}
       <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
         <SectionHeader
-          title="My Donations"
-          sub={`${donations.length} total listings`}
+          title="Active Donations"
+          sub={`${active.length} in progress`}
           action={
             <Link to="/donor/add">
               <button className="btn-primary text-xs py-2 px-4 flex items-center gap-1">
@@ -103,39 +106,23 @@ export default function DonorDashboard() {
 
         {loading ? (
           <div className="flex justify-center py-12"><Spinner /></div>
-        ) : donations.length === 0 ? (
+        ) : active.length === 0 ? (
           <EmptyState
             icon="📦"
-            message="You haven't added any donations yet."
+            message="No active donations right now."
             action={
               <Link to="/donor/add">
-                <button className="btn-primary text-sm py-2 px-5">Add Your First Donation</button>
+                <button className="btn-primary text-sm py-2 px-5">Add a Donation</button>
               </Link>
             }
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {donations.map((d, i) => (
+            {active.map((d, i) => (
               <FoodCard key={d._id} donation={d} delay={i * 0.05} />
             ))}
           </div>
         )}
-        {donations.filter(d => d.status === 'expired' && d.recoveryOption).length > 0 && (
-  <div className="mb-8">
-    <SectionHeader title="⚠️ Needs Recovery Action" sub="These missed pickup or spoiled in transit" />
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {donations.filter(d => d.status === 'expired' && d.recoveryOption).map(d => (
-        <div key={d._id} className="bg-white rounded-2xl p-4" style={{ border: '1.5px solid #fee2e2' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-sm text-gray-800">{d.foodName}</span>
-            <span className="text-xs text-red-500 font-medium">{d.spoiledStage === 'in_delivery' ? 'Spoiled in transit' : 'Missed pickup'}</span>
-          </div>
-          <RecoveryBadge option={d.recoveryOption} reason={d.recoveryReason} />
-        </div>
-      ))}
-    </div>
-  </div>
-)}
       </div>
     </DashboardLayout>
   );
