@@ -53,7 +53,7 @@ export default function DashboardLayout({ children, title }) {
     volunteer: '#f59e0b',
     admin: '#8b5cf6',
   };
-  const roleColor = roleColors[user?.role] || '#071406';
+  const roleColor = roleColors[user?.role] || '#61cc59';
 
   return (
     <div className="flex min-h-screen bg-gray-50">
