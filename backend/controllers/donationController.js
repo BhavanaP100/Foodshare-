@@ -9,30 +9,48 @@ const {
   kgToCO2Saved,
 } = require('../utils/algorithms');
 
-// Auto-expire a donation if its pickup deadline has passed and nobody ever
-// picked it up (still pending/matched/assigned). Attaches a recovery
-// recommendation. Called opportunistically on read — no cron job needed.
-const autoExpireIfNeeded = async (donation) => {
-  if (
-    ['pending', 'matched', 'assigned'].includes(donation.status) &&
-    new Date(donation.pickupDeadline).getTime() < Date.now()
-  ) {
-    const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
-    const { option, reason } = getRecoveryRecommendation({
-      category: donation.category,
-      quantity: donation.quantity,
-      freshnessScore,
-    });
+// Auto-expire a donation only when BOTH its pickup deadline has passed AND
+// its real freshness (decay curve) has actually dropped to critical —
+// this stops well-stored/packaged food from being yanked into "expired"
+// the instant a suggested pickup window closes, while still catching food
+// that has genuinely gone bad. Called opportunistically on read — no cron
+// job needed.
+const EXPIRE_FRESHNESS_THRESHOLD = 15;
 
-    donation.status = 'expired';
+const autoExpireIfNeeded = async (donation) => {
+  if (!['pending', 'matched', 'assigned'].includes(donation.status)) {
+    return donation;
+  }
+
+  const deadlinePassed = new Date(donation.pickupDeadline).getTime() < Date.now();
+  if (!deadlinePassed) return donation;
+
+  const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+
+  if (freshnessScore > EXPIRE_FRESHNESS_THRESHOLD) {
+    // Deadline passed, but the food is still genuinely fresh (e.g. packaged
+    // or frozen) — keep it active and just refresh its score, don't expire it.
     donation.freshnessScore = freshnessScore;
     donation.freshnessBadge = freshnessBadge;
-    donation.recoveryOption = option;
-    donation.recoveryReason = reason;
-    donation.spoiledAt = new Date();
-    donation.spoiledStage = 'missed_pickup';
     await donation.save();
+    return donation;
   }
+
+  const { option, reason } = getRecoveryRecommendation({
+    category: donation.category,
+    quantity: donation.quantity,
+    freshnessScore,
+  });
+
+  donation.status = 'expired';
+  donation.freshnessScore = freshnessScore;
+  donation.freshnessBadge = freshnessBadge;
+  donation.recoveryOption = option;
+  donation.recoveryReason = reason;
+  donation.spoiledAt = new Date();
+  donation.spoiledStage = 'missed_pickup';
+  await donation.save();
+
   return donation;
 };
 
@@ -136,8 +154,8 @@ exports.getAvailableDonations = async (req, res) => {
 
     let donations = await Donation.find(filter).populate('donor', 'name phone address');
 
-    // Expire any that slipped past deadline before we rank them, so they
-    // don't show as "available" and disappear from other lists silently.
+    // Expire any that genuinely need it before ranking; anything still
+    // fresh despite a passed deadline stays pending and gets ranked normally.
     const stillPending = [];
     for (const d of donations) {
       await autoExpireIfNeeded(d);
@@ -327,6 +345,32 @@ exports.getDonationById = async (req, res) => {
 
     const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(donation);
     res.json({ success: true, donation: { ...donation.toObject(), freshnessScore, freshnessBadge, urgencyLevel } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  PUT /api/donations/:id/recovery-action  (donor confirms they handled recovery)
+exports.markRecoveryAction = async (req, res) => {
+  try {
+    const donation = await Donation.findById(req.params.id);
+    if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
+
+    if (String(donation.donor) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'You can only act on your own donations.' });
+    }
+    if (donation.status !== 'expired') {
+      return res.status(400).json({ success: false, message: 'This donation is not in a recovery-needed state.' });
+    }
+    if (donation.recoveryActionTaken) {
+      return res.status(400).json({ success: false, message: 'Recovery action already recorded for this donation.' });
+    }
+
+    donation.recoveryActionTaken = true;
+    donation.recoveryActionTakenAt = new Date();
+    await donation.save();
+
+    res.json({ success: true, donation });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

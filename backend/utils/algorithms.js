@@ -44,16 +44,27 @@ const calculateFreshness = (donation) => {
 
   const effectiveDecay = (hoursElapsed * riskMultiplier * storageBoost) / maxHours;
 
-  const deadlineFactor = Math.max(0, (deadline - now) / (1000 * 60 * 60));
+  const deadlineFactor = (deadline - now) / (1000 * 60 * 60); // hours left, can go negative
 
   const quantityPressure = quantity > 50 ? 0.95 : 1.0;
 
-  // Clamped 0–100 — previously had no upper bound, which let scores blow
-  // past 100 when cookedTime was in the future (bad input / tz mismatch).
   let freshnessScore = Math.max(0, Math.min(100, Math.round((1 - effectiveDecay) * 100 * quantityPressure)));
 
-  if (deadlineFactor < 1) freshnessScore = Math.min(freshnessScore, 20);
-  if (deadlineFactor < 0) freshnessScore = 0;
+  // Deadline passing is an "overdue for pickup" signal, not a food-safety
+  // verdict by itself — a packaged or frozen item can still be perfectly
+  // fine well after its suggested pickup window. So we only apply a mild
+  // urgency cap as the deadline approaches/passes, and let the actual
+  // decay curve (based on category + storage + time since cooked) keep
+  // governing the real freshness score.
+  if (deadlineFactor < 1 && deadlineFactor >= 0) {
+    // Within the last hour before deadline — nudge toward "act now"
+    freshnessScore = Math.min(freshnessScore, 30);
+  } else if (deadlineFactor < 0) {
+    // Past deadline — apply a modest penalty, not a hard zero, so the
+    // underlying decay curve (which already reflects real spoilage) stays
+    // the primary signal.
+    freshnessScore = Math.max(0, freshnessScore - 15);
+  }
 
   let freshnessBadge;
   let urgencyLevel;
@@ -141,17 +152,6 @@ const smartMatchNGOs = (donation, ngoList) => {
 
 /**
  * ALGORITHM 3b: Rank donations for a specific NGO
- *
- * Composite weighting:
- *  - 60% core score (distance to NGO + this NGO's capacity fit + freshness urgency weighting — same model as before)
- *  - 15% pickup urgency (time left until pickupDeadline, independent of decay)
- *  - 15% NGO demand (how much spare capacity this NGO currently has vs its active commitments)
- *  - 10% volunteer availability (platform-wide count of verified+available volunteers —
- *        see note: not geographically filtered since volunteers don't currently save a location)
- *
- * @param {Object} ngo
- * @param {Array} donations
- * @param {Object} options - { maxDistance, ngoDemandScore, volunteerAvailabilityScore }
  */
 const rankDonationsForNGO = (ngo, donations, options = {}) => {
   const {
@@ -181,8 +181,6 @@ const rankDonationsForNGO = (ngo, donations, options = {}) => {
         urgencyWeight * distanceScore + (1 - urgencyWeight) * 0.7 * capacityScore + availabilityBonus
       );
 
-      // Pickup urgency — purely time-to-deadline, independent of decay curve.
-      // A donation could be nutritionally "Fresh" but have a very tight deadline.
       const hoursLeft = Math.max(0, (new Date(donation.pickupDeadline).getTime() - Date.now()) / (1000 * 60 * 60));
       const pickupUrgencyScore = hoursLeft <= 0 ? 100 : Math.max(0, 100 - (hoursLeft / 24) * 100);
 
@@ -225,18 +223,10 @@ const isValidTransition = (fromState, toState) => {
 
 /**
  * ALGORITHM 5: Recovery Recommendation
- * For donations that expired or spoiled before reaching a recipient.
- * Rule-based, using category, storage, quantity, and how far freshness had
- * decayed at the point of failure.
- *
- * @param {Object} donation - must include category, quantity, and freshnessScore
- * @returns {{ option: 'compost'|'animal_feed'|'biogas'|'discard_safely', reason: string }}
  */
 const getRecoveryRecommendation = (donation) => {
   const { category, quantity, freshnessScore = 0 } = donation;
 
-  // Very large volume of high-risk food, badly decayed — unsafe even for
-  // animal feed, best routed to biogas/energy recovery.
   if (['cooked', 'dairy'].includes(category) && freshnessScore < 10 && quantity > 20) {
     return {
       option: 'biogas',
@@ -244,8 +234,6 @@ const getRecoveryRecommendation = (donation) => {
     };
   }
 
-  // Cooked/dairy food that spoiled but isn't heavily contaminated —
-  // can still go to animal feed programs.
   if (['cooked', 'dairy'].includes(category)) {
     return {
       option: 'animal_feed',
@@ -253,7 +241,6 @@ const getRecoveryRecommendation = (donation) => {
     };
   }
 
-  // Raw produce, bakery, and packaged dry goods compost well.
   if (['raw', 'bakery', 'packaged', 'other'].includes(category)) {
     return {
       option: 'compost',
@@ -261,29 +248,14 @@ const getRecoveryRecommendation = (donation) => {
     };
   }
 
-  // Beverages and anything else — default to safe disposal.
   return {
     option: 'discard_safely',
     reason: 'No suitable recovery pathway identified for this food type — dispose of safely per local guidelines.',
   };
 };
 
-// Estimate meals from kg
-const kgToMeals = (kg) => Math.round(kg * 2.5);
-
-// Estimate CO2 saved from kg of food redistributed
-const kgToCO2Saved = (kg) => Math.round(kg * 2.5 * 10) / 10;
-
-
 /**
  * ALGORITHM 6: Recommend Volunteers for a Donation
- * Once an NGO accepts a donation, find nearby verified + available
- * volunteers ranked by distance, rating, and availability.
- *
- * @param {Object} donation - accepted donation (needs location.coordinates)
- * @param {Array} volunteerList - candidate volunteers (must have location.coordinates)
- * @param {number} maxDistance - km radius cutoff
- * @returns {Array} { volunteer, distance, score }, sorted best-first
  */
 const recommendVolunteersForDonation = (donation, volunteerList, maxDistance = 20) => {
   const [donLng, donLat] = donation.location.coordinates;
@@ -297,7 +269,7 @@ const recommendVolunteersForDonation = (donation, volunteerList, maxDistance = 2
       if (distance > maxDistance) return null;
 
       const distanceScore = Math.max(0, 100 - (distance / maxDistance) * 100);
-      const ratingScore = Math.min(100, (volunteer.rating || 0) * 20); // rating is 0-5
+      const ratingScore = Math.min(100, (volunteer.rating || 0) * 20);
       const availabilityBonus = volunteer.isAvailable ? 15 : 0;
 
       const score = Math.round(0.6 * distanceScore + 0.25 * ratingScore + availabilityBonus);
@@ -309,6 +281,13 @@ const recommendVolunteersForDonation = (donation, volunteerList, maxDistance = 2
 
   return scored;
 };
+
+// Estimate meals from kg
+const kgToMeals = (kg) => Math.round(kg * 2.5);
+
+// Estimate CO2 saved from kg of food redistributed
+const kgToCO2Saved = (kg) => Math.round(kg * 2.5 * 10) / 10;
+
 module.exports = {
   calculateFreshness,
   haversineDistance,

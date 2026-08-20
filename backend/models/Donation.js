@@ -73,6 +73,8 @@ const donationSchema = new mongoose.Schema(
       type: String,
       enum: ['missed_pickup', 'in_delivery'],
     },
+    recoveryActionTaken: { type: Boolean, default: false },
+recoveryActionTakenAt: { type: Date },
 
     // Capacity-based split — set when a donation's quantity exceeded the
     // accepting NGO's capacity and had to be divided; the remainder becomes
@@ -82,6 +84,7 @@ const donationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 
 donationSchema.index({ location: '2dsphere' });
 donationSchema.index({ status: 1 });
