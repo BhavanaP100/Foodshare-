@@ -9,7 +9,6 @@ const ROLES = [
   { value: 'donor', label: 'Food Donor', icon: '📦', desc: 'Share surplus food from restaurants, homes, or events', color: '#22c55e' },
   { value: 'ngo', label: 'NGO / Shelter', icon: '🏠', desc: 'Receive food donations for your community', color: '#0ea5e9' },
   { value: 'volunteer', label: 'Volunteer', icon: '🚴', desc: 'Pick up and deliver food to those in need', color: '#f59e0b' },
-   {value: 'customer', label: 'Need Food', icon: '🍽️', desc: 'Find and request available food near you', color: '#ef4444' }
 ];
 
 export default function Register() {
@@ -28,7 +27,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
 
-  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer', customer: '/late-night' };
+  const ROLE_REDIRECTS = { donor: '/donor', ngo: '/ngo', volunteer: '/volunteer' };
 
   const handleSubmit = async (e) => {
     e.preventDefault();

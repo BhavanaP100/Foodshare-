@@ -11,6 +11,7 @@ import CompletedDonations from './pages/donor/CompletedDonations';
 import ExpiredDonations from './pages/donor/ExpiredDonations';
 import NGODashboard from './pages/ngo/NGODashboard';
 import AvailableDonations from './pages/ngo/AvailableDonations';
+import AcceptedDonations from './pages/ngo/AcceptedDonations';
 import VolunteerDashboard from './pages/volunteer/VolunteerDashboard';
 import DeliveryTracking from './pages/volunteer/DeliveryTracking';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -46,6 +47,7 @@ export default function App() {
       {/* NGO */}
       <Route path="/ngo" element={<ProtectedRoute allowedRoles={['ngo']}><NGODashboard /></ProtectedRoute>} />
       <Route path="/ngo/donations" element={<ProtectedRoute allowedRoles={['ngo']}><AvailableDonations /></ProtectedRoute>} />
+      <Route path="/ngo/accepted" element={<ProtectedRoute allowedRoles={['ngo']}><AcceptedDonations /></ProtectedRoute>} />
 
       {/* Volunteer */}
       <Route path="/volunteer" element={<ProtectedRoute allowedRoles={['volunteer']}><VolunteerDashboard /></ProtectedRoute>} />

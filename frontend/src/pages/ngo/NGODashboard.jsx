@@ -91,7 +91,12 @@ export default function NGODashboard() {
         loadRecommendations(data.donation._id);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to accept');
+      if (err.response?.data?.code === 'DONATION_EXPIRED') {
+        alert('This donation expired between listing and acceptance and is no longer available. Refreshing the list…');
+        setDonations(prev => prev.filter(d => d._id !== id));
+      } else {
+        alert(err.response?.data?.message || 'Failed to accept');
+      }
     } finally {
       setAccepting(null);
     }
@@ -129,7 +134,6 @@ export default function NGODashboard() {
 
   const filtered = donations.filter(d => d.foodName?.toLowerCase().includes(search.toLowerCase()));
   const pending = filtered.filter(d => d.status === 'pending');
-  const accepted = filtered.filter(d => d.status !== 'pending');
 
   return (
     <DashboardLayout title="NGO Dashboard">
@@ -173,7 +177,7 @@ export default function NGODashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon="🍽️" label="Available Now" value={pending.length} color="#22c55e" delay={0} />
-        <StatCard icon="✅" label="Accepted" value={accepted.length} color="#0ea5e9" delay={0.1} />
+        <StatCard icon="✅" label="Accepted" value={acceptedCount} color="#0ea5e9" delay={0.1} />
         <StatCard icon="🔴" label="Critical / Urgent" value={donations.filter(d => d.urgencyLevel === 'critical').length} color="#ef4444" delay={0.2} />
         <StatCard icon="📍" label={`Within ${filters.maxDistance} km`} value={donations.length} color="#f59e0b" delay={0.3} />
       </div>
@@ -329,6 +333,20 @@ export default function NGODashboard() {
           <FiRefreshCw size={15} /> Apply
         </motion.button>
       </div>
+
+      {/* Accepted donations now live on their own page (find/assign a
+          volunteer, track a delivery) -- this is a quick link in. */}
+      {acceptedCount > 0 && (
+        <div className="rounded-2xl p-5 mb-6 flex items-center justify-between flex-wrap gap-3" style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0' }}>
+          <div>
+            <div className="text-sm font-semibold text-green-900">{acceptedCount} accepted donation{acceptedCount !== 1 ? 's' : ''} in progress</div>
+            <div className="text-xs text-green-700 mt-0.5">Find and assign volunteers, track deliveries, from Accepted Donations.</div>
+          </div>
+          <Link to="/ngo/accepted">
+            <button className="btn-primary text-xs py-2 px-4">View Accepted Donations →</button>
+          </Link>
+        </div>
+      )}
 
       {/* Urgent / Critical section */}
       {donations.filter(d => d.urgencyLevel === 'critical' && d.status === 'pending').length > 0 && (

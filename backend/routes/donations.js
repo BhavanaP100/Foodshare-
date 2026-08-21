@@ -25,6 +25,7 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 router.post('/add', protect, authorize('donor'), upload.array('images', 5), addDonation);
 router.get('/my', protect, authorize('donor'), getMyDonations);
 router.get('/available', protect, authorize('ngo', 'volunteer'), getAvailableDonations);
+router.get('/accepted', protect, authorize('ngo'), getAcceptedDonations);
 router.get('/late-night', protect, getLateNightDonations);
 router.post('/:id/accept', protect, authorize('ngo', 'customer'), acceptDonation);
 router.put('/:id/recovery-action', protect, authorize('donor'), markRecoveryAction);

@@ -57,6 +57,7 @@ const donationSchema = new mongoose.Schema(
     },
 
     matchedNGO: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    matchedAt: { type: Date }, // when the NGO accepted this donation
     assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     mealsEquivalent: { type: Number, default: 0 },
     co2Saved: { type: Number, default: 0 },

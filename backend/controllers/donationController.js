@@ -297,9 +297,47 @@ exports.acceptDonation = async (req, res) => {
 
     donation.status = 'matched';
     donation.matchedNGO = req.user._id;
+    donation.matchedAt = new Date();
+    // Persist the just-recalculated freshness too, so anyone viewing this
+    // donation afterward sees the value it was actually accepted at.
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
     await donation.save();
 
     res.json({ success: true, donation });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  GET /api/donations/accepted
+// For NGOs - every donation THEY accepted (matchedNGO === self), at any
+// stage of the pipeline (matched/assigned/picked_up/in_transit/delivered/
+// verified). Deliberately separate from /available, which only ever
+// returns status:'pending' donations from all donors -- an accepted
+// donation would otherwise have nowhere to persist on the NGO's side.
+exports.getAcceptedDonations = async (req, res) => {
+  try {
+    const ngo = req.user;
+
+    const donations = await Donation.find({ matchedNGO: ngo._id })
+      .populate('donor', 'name phone address')
+      .populate('assignedVolunteer', 'name phone rating isVerified')
+      .sort({ createdAt: -1 });
+
+    const hasNGOLocation = ngo.location?.coordinates?.length === 2;
+    const [ngoLng, ngoLat] = hasNGOLocation ? ngo.location.coordinates : [];
+
+    const enriched = donations.map((d) => {
+      let distance;
+      if (hasNGOLocation && d.location?.coordinates?.length === 2) {
+        const [donLng, donLat] = d.location.coordinates;
+        distance = haversineDistance(ngoLat, ngoLng, donLat, donLng);
+      }
+      return { ...d.toObject(), distance };
+    });
+
+    res.json({ success: true, donations: enriched });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

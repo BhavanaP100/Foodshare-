@@ -128,6 +128,20 @@ export default function DeliveryTracking() {
     }
   };
 
+  const [rejecting, setRejecting] = useState(false);
+  const declineTask = async () => {
+    if (!window.confirm('Decline this task? The NGO will need to assign a different volunteer.')) return;
+    setRejecting(true);
+    try {
+      const { data } = await api.post('/tracking/reject', { donationId: id });
+      if (data.success) setLog(data.log);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to decline');
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const shareLocation = () => {
     navigator.geolocation?.watchPosition(async ({ coords }) => {
       const pos = [coords.latitude, coords.longitude];
@@ -337,6 +351,11 @@ export default function DeliveryTracking() {
               {log.currentStatus === 'verified' && (
                 <div className="text-center py-4 text-green-600 font-semibold">
                   🎉 Delivery Verified! Great work!
+                </div>
+              )}
+              {log.currentStatus === 'rejected' && (
+                <div className="text-center py-4 text-red-500 font-semibold text-sm">
+                  You declined this task. The NGO has been notified to reassign it.
                 </div>
               )}
             </div>

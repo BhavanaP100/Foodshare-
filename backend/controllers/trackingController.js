@@ -51,6 +51,26 @@ exports.assignVolunteer = async (req, res) => {
 
     const donation = await Donation.findById(donationId);
     if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
+    if (donation.matchedNGO?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'You did not accept this donation' });
+    }
+    if (donation.status !== 'matched') {
+      return res.status(400).json({ success: false, message: 'This donation is not awaiting volunteer assignment' });
+    }
+
+    // Safety check: don't allow assigning someone who isn't actually an
+    // eligible volunteer, even if the NGO bypasses the recommendation UI
+    // and posts an arbitrary ID directly.
+    const volunteer = await User.findById(volunteerId);
+    if (!volunteer || volunteer.role !== 'volunteer' || !volunteer.isActive) {
+      return res.status(400).json({ success: false, message: 'Invalid volunteer' });
+    }
+    if (!volunteer.isAvailable) {
+      return res.status(400).json({ success: false, message: 'This volunteer is not currently available' });
+    }
+    if (!volunteer.isVerified) {
+      return res.status(400).json({ success: false, message: 'This volunteer is not yet verified for pickups' });
+    }
 
     const volunteer = await User.findById(volunteerId);
     if (!volunteer || volunteer.role !== 'volunteer') {
@@ -83,6 +103,41 @@ exports.assignVolunteer = async (req, res) => {
       foodName: donation.foodName,
       ngoName: req.user.ngoName || req.user.name,
     });
+
+    res.json({ success: true, log });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  POST /api/tracking/reject  (volunteer declines an assigned task)
+// The existing FSM only ever moved forward (requested -> accepted -> ...);
+// there was no way for a volunteer to actually decline. This reverts the
+// donation to 'matched' so the NGO can pick a different volunteer, and
+// marks the DeliveryLog 'rejected' rather than silently deleting history.
+exports.rejectTask = async (req, res) => {
+  try {
+    const { donationId, reason } = req.body;
+
+    const log = await DeliveryLog.findOne({ donation: donationId, volunteer: req.user._id });
+    if (!log) return res.status(404).json({ success: false, message: 'Delivery log not found' });
+    if (log.currentStatus !== 'requested') {
+      return res.status(400).json({ success: false, message: 'This task can no longer be declined' });
+    }
+
+    log.currentStatus = 'rejected';
+    log.statusHistory.push({ status: 'rejected', timestamp: new Date(), note: reason });
+    await log.save();
+
+    const donation = await Donation.findById(donationId);
+    if (donation && donation.status === 'assigned') {
+      donation.status = 'matched';
+      donation.assignedVolunteer = undefined;
+      await donation.save();
+    }
+
+    const io = req.app.get('io');
+    io.to(`donation_${donationId}`).emit('status_update', { status: 'rejected', log });
 
     res.json({ success: true, log });
   } catch (err) {
@@ -327,7 +382,7 @@ exports.getVolunteerTasks = async (req, res) => {
   try {
     const active = await DeliveryLog.find({
       volunteer: req.user._id,
-      currentStatus: { $nin: ['verified'] },
+      currentStatus: { $nin: ['verified', 'rejected'] },
     })
       .populate('donation')
       .populate('donor', 'name phone address')

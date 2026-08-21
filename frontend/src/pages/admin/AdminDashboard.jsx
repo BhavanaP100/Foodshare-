@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [impact, setImpact] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [recoveryDonations, setRecoveryDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
 
@@ -24,11 +25,13 @@ export default function AdminDashboard() {
       api.get('/analytics/impact'),
       api.get('/analytics/admin'),
       api.get('/admin/users'),
+      api.get('/donations/all?status=expired&limit=50'),
     ])
-      .then(([imp, adm, usr]) => {
+      .then(([imp, adm, usr, exp]) => {
         if (imp.data.success) setImpact(imp.data);
         if (adm.data.success) setAdminStats(adm.data);
         if (usr.data.success) setUsers(usr.data.users);
+        if (exp.data.success) setRecoveryDonations(exp.data.donations);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -51,7 +54,14 @@ const verifyVolunteer = async (id) => {
   }
 };
 
-  const TABS = ['overview','users','donations','charts'];
+  const toggleVerify = async (id) => {
+    try {
+      const { data } = await api.put(`/admin/users/${id}/verify`);
+      if (data.success) setUsers(prev => prev.map(u => u._id === id ? data.user : u));
+    } catch { }
+  };
+
+  const TABS = ['overview','users','donations','charts','recovery'];
 
   if (loading) return <DashboardLayout title="Admin Dashboard"><div className="flex justify-center py-24"><Spinner size={12} /></div></DashboardLayout>;
 
@@ -240,6 +250,50 @@ const verifyVolunteer = async (id) => {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      )}
+      {/* Recovery tab */}
+      {tab === 'recovery' && (
+        <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontFamily: 'Syne', fontWeight: 700, color: '#14532d', fontSize: '1rem', marginBottom: 4 }}>
+            Recovery Recommendations
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">
+            Donations that could no longer be safely redistributed (freshness fully decayed, or the pickup deadline
+            passed while unclaimed). These are recommendations only — the platform does not physically route food anywhere.
+          </p>
+          {recoveryDonations.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">No donations currently need a recovery recommendation.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-400 text-xs border-b border-gray-100">
+                    <th className="pb-3 font-medium">Food</th>
+                    <th className="pb-3 font-medium">Donor</th>
+                    <th className="pb-3 font-medium">Category</th>
+                    <th className="pb-3 font-medium">Recommended Pathway</th>
+                    <th className="pb-3 font-medium">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recoveryDonations.map(d => (
+                    <tr key={d._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors align-top">
+                      <td className="py-3 font-medium text-gray-800">{d.foodName}</td>
+                      <td className="py-3 text-gray-500">{d.donor?.name}</td>
+                      <td className="py-3 text-gray-500 capitalize">{d.category}</td>
+                      <td className="py-3">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>
+                          ♻️ {d.recoveryRecommendation?.pathway || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-gray-400 text-xs max-w-xs">{d.recoveryRecommendation?.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </DashboardLayout>

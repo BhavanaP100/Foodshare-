@@ -12,7 +12,11 @@ router.get('/find/:donationId', protect, authorize('admin', 'ngo'), async (req, 
     const donation = await Donation.findById(req.params.donationId);
     if (!donation) return res.status(404).json({ success: false, message: 'Not found' });
 
-    const ngos = await User.find({ role: 'ngo', isActive: true, 'location.coordinates': { $ne: [0, 0] } });
+    const ngos = await User.find({
+      role: 'ngo',
+      isActive: true,
+      'location.coordinates.1': { $exists: true },
+    });
     const ranked = smartMatchNGOs(donation, ngos);
 
     res.json({ success: true, matches: ranked });
