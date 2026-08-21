@@ -11,6 +11,7 @@ const {
   getRecommendedVolunteers,
   verifyDelivery,
   getPendingReview,
+  rejectTask,
 } = require('../controllers/trackingController');
 const { protect, authorize } = require('../middleware/auth');
 

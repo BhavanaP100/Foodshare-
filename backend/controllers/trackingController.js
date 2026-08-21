@@ -72,17 +72,6 @@ exports.assignVolunteer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This volunteer is not yet verified for pickups' });
     }
 
-    const volunteer = await User.findById(volunteerId);
-    if (!volunteer || volunteer.role !== 'volunteer') {
-      return res.status(404).json({ success: false, message: 'Volunteer not found' });
-    }
-    if (!volunteer.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: 'This volunteer is not yet verified and cannot be assigned deliveries.',
-      });
-    }
-
     donation.assignedVolunteer = volunteerId;
     donation.status = 'assigned';
     await donation.save();
@@ -402,6 +391,7 @@ exports.getVolunteerTasks = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 // @route  GET /api/tracking/pending-review  (NGO)
 // Deliveries this NGO has had marked "delivered" by a volunteer, but hasn't
 // verified/rated yet. This is the persistent source of truth — the socket
