@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   FiGrid, FiPlusCircle, FiPackage, FiMapPin, FiBarChart2,
   FiMoon, FiLogOut, FiMenu, FiX, FiUser, FiBell, FiSettings,
+  FiHome, FiCheckSquare,
   FiCheckCircle, FiAlertTriangle
 } from 'react-icons/fi';
 
