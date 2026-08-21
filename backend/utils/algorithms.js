@@ -206,116 +206,6 @@ const rankDonationsForNGO = (ngo, donations, options = {}) => {
 };
 
 /**
- * ALGORITHM 5: Volunteer Recommendation
- * Multi-Criteria Decision-Based Ranking (rule-based, NOT ML)
- *
- * When an NGO accepts a donation, it needs to pick a volunteer to pick it
- * up. Rather than "give it to the highest-rated volunteer," this ranks
- * every eligible candidate using the same kind of weighted, explainable
- * scoring as smartMatchNGOs/rankDonationsForNGO above.
- *
- * Eligibility (hard filters, not scored):
- *  - role === 'volunteer'
- *  - isActive
- *  - isAvailable
- *  - isVerified  (admin-verified for food handling/trust)
- *
- * Scoring (for those who pass the filters):
- *  - Distance to the donation's pickup location (closer = better)
- *  - Rating (higher = better, small weight — this is a tie-breaker,
- *    NOT the primary factor, per the "not just highest-rated" requirement)
- *
- * A volunteer with no saved location is still included (can't be excluded
- * just because they haven't set a location yet) but ranked behind anyone
- * with a known, closer distance, and flagged accordingly.
- *
- * Returns each candidate with a plain-language `reasons` array so the
- * recommendation is explainable to the NGO, e.g.:
- *   ["2.4 km away", "Available", "Verified"]
- *
- * @param {Object} donation - the accepted donation (needs .location)
- * @param {Array} volunteers - candidate User documents (role: 'volunteer')
- * @param {number} maxDistance - km radius cutoff for "nearby" (soft, for display only)
- * @returns {Array} ranked list: { volunteer, distance, score, reasons }
- */
-const rankVolunteersForDonation = (donation, volunteers, maxDistance = 20) => {
-  const [donLng, donLat] = donation.location.coordinates;
-
-  const eligible = volunteers.filter(
-    (v) => v.role === 'volunteer' && v.isActive && v.isAvailable && v.isVerified
-  );
-
-  const scored = eligible.map((v) => {
-    const hasLocation = v.location?.coordinates?.length === 2 &&
-      (v.location.coordinates[0] !== 0 || v.location.coordinates[1] !== 0);
-
-    let distance = null;
-    let distanceScore = 40; // neutral-ish default when distance is unknown
-    if (hasLocation) {
-      const [vLng, vLat] = v.location.coordinates;
-      distance = haversineDistance(donLat, donLng, vLat, vLng);
-      distanceScore = Math.max(0, 100 - (distance / maxDistance) * 100);
-    }
-
-    const ratingScore = Math.min(100, ((v.rating || 0) / 5) * 100);
-
-    // Distance dominates (this is a pickup logistics problem first);
-    // rating is a secondary tie-breaker, not the primary driver.
-    const score = Math.round(0.75 * distanceScore + 0.25 * ratingScore);
-
-    const reasons = [];
-    reasons.push(hasLocation ? `${distance} km away` : 'Distance unknown (no saved location)');
-    reasons.push('Available');
-    reasons.push('Verified');
-    if (v.rating) reasons.push(`⭐ ${v.rating.toFixed(1)} rating`);
-
-    return { volunteer: v, distance, score, reasons, hasLocation };
-  });
-
-  // Known-distance candidates first (best logistics info), ranked by score;
-  // unknown-distance candidates after, also ranked by score among themselves.
-  scored.sort((a, b) => {
-    if (a.hasLocation !== b.hasLocation) return a.hasLocation ? -1 : 1;
-    return b.score - a.score;
-  });
-
-  return scored;
-};
-
-/**
- * ALGORITHM 6: Recovery Recommendation
- * Rule-Based Pathway Suggestion (NOT waste collection -- a recommendation only)
- *
- * When a donation can no longer be safely redistributed to people (freshness
- * hit 0, or its pickup deadline passed while still unclaimed), recommend an
- * appropriate organic-waste recovery pathway based on its category. This is
- * a simple lookup table, not a scientific or food-safety claim.
- *
- * @param {Object} donation - donation with category/freshnessScore/pickupDeadline
- * @returns {{ pathway: string, reason: string }}
- */
-const RECOVERY_PATHWAY_BY_CATEGORY = {
-  cooked: 'Composting',
-  raw: 'Composting',
-  bakery: 'Composting',
-  dairy: 'Biogas / Anaerobic Digestion',
-  beverages: 'Biogas / Anaerobic Digestion',
-  packaged: 'Composting',
-  other: 'Composting',
-};
-
-const getRecoveryRecommendation = (donation) => {
-  const pathway = RECOVERY_PATHWAY_BY_CATEGORY[donation.category] || 'Composting';
-  const deadlinePassed = new Date(donation.pickupDeadline).getTime() < Date.now();
-
-  const reason = deadlinePassed
-    ? 'Pickup deadline passed before the donation could be redistributed.'
-    : 'Donation could not be redistributed within the safe time window.';
-
-  return { pathway, reason: `${reason} Recommended recovery pathway: ${pathway}.` };
-};
-
-/**
  * ALGORITHM 4: Volunteer Finite State Machine
  */
 const DELIVERY_STATES = {
@@ -333,6 +223,15 @@ const isValidTransition = (fromState, toState) => {
 
 /**
  * ALGORITHM 5: Recovery Recommendation
+ * Rule-Based Pathway Suggestion (NOT waste collection -- a recommendation only)
+ *
+ * When a donation can no longer be safely redistributed to people (freshness
+ * hit 0, or its pickup deadline passed while still unclaimed), recommend an
+ * appropriate organic-waste recovery pathway based on its category. This is
+ * a simple lookup table, not a scientific or food-safety claim.
+ *
+ * @param {Object} donation - donation with category/freshnessScore
+ * @returns {{ option: string, reason: string }}
  */
 const getRecoveryRecommendation = (donation) => {
   const { category, quantity, freshnessScore = 0 } = donation;
