@@ -1,36 +1,41 @@
 const DeliveryLog = require('../models/DeliveryLog');
 const Donation = require('../models/Donation');
 const User = require('../models/User');
-const { isValidTransition, rankVolunteersForDonation } = require('../utils/algorithms');
+const { isValidTransition, kgToMeals, calculateFreshness, getRecoveryRecommendation, recommendVolunteersForDonation } = require('../utils/algorithms');
 
-// @route  GET /api/tracking/recommend/:donationId  (NGO only)
-// Rule-based volunteer recommendation for a specific accepted donation.
-// NOT "give it to the highest-rated volunteer" -- ranks every eligible
-// (active + available + verified) volunteer by distance to the pickup
-// location first, rating as a secondary tie-breaker, and returns an
-// explainable reasons[] per candidate. The NGO still chooses who to assign.
-exports.recommendVolunteers = async (req, res) => {
+const NGO_AWARDABLE_BADGES = ['Speed Star', 'Careful Handler', 'Community Hero'];
+
+// @route  GET /api/tracking/recommend/:donationId  (NGO)
+exports.getRecommendedVolunteers = async (req, res) => {
   try {
     const donation = await Donation.findById(req.params.donationId);
     if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
-    if (donation.matchedNGO?.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'You did not accept this donation' });
+
+    if (String(donation.matchedNGO) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'You have not accepted this donation.' });
     }
 
-    const volunteers = await User.find({ role: 'volunteer', isActive: true });
-    const ranked = rankVolunteersForDonation(donation, volunteers);
+    const candidates = await User.find({
+      role: 'volunteer',
+      isActive: true,
+      isVerified: true,
+    }).select('name phone rating completedDeliveries location isAvailable badges');
 
-    const recommendations = ranked.map(({ volunteer, distance, score, reasons }) => ({
-      volunteer: {
-        _id: volunteer._id,
-        name: volunteer.name,
-        phone: volunteer.phone,
-        rating: volunteer.rating,
-        completedDeliveries: volunteer.completedDeliveries,
-      },
+    const ranked = recommendVolunteersForDonation(donation, candidates, 20);
+
+    const recommendations = ranked.map(({ volunteer, distance, score }) => ({
+      _id: volunteer._id,
+      name: volunteer.name,
+      phone: volunteer.phone,
+      rating: volunteer.rating,
+      completedDeliveries: volunteer.completedDeliveries,
+      isAvailable: volunteer.isAvailable,
+      badges: volunteer.badges,
       distance,
       score,
-      reasons,
+      distanceScore: Math.round(Math.max(0, 100 - (distance / 20) * 100)),
+      ratingScore: Math.round(Math.min(100, (volunteer.rating || 0) * 20)),
+      availabilityScore: volunteer.isAvailable ? 100 : 0,
     }));
 
     res.json({ success: true, recommendations });
@@ -67,6 +72,17 @@ exports.assignVolunteer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This volunteer is not yet verified for pickups' });
     }
 
+    const volunteer = await User.findById(volunteerId);
+    if (!volunteer || volunteer.role !== 'volunteer') {
+      return res.status(404).json({ success: false, message: 'Volunteer not found' });
+    }
+    if (!volunteer.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'This volunteer is not yet verified and cannot be assigned deliveries.',
+      });
+    }
+
     donation.assignedVolunteer = volunteerId;
     donation.status = 'assigned';
     await donation.save();
@@ -80,9 +96,13 @@ exports.assignVolunteer = async (req, res) => {
       statusHistory: [{ status: 'requested', timestamp: new Date() }],
     });
 
-    // Notify via socket
     const io = req.app.get('io');
     io.to(`donation_${donationId}`).emit('status_update', { status: 'requested', log });
+    io.to(`volunteer_${volunteerId}`).emit('new_assignment', {
+      donationId,
+      foodName: donation.foodName,
+      ngoName: req.user.ngoName || req.user.name,
+    });
 
     res.json({ success: true, log });
   } catch (err) {
@@ -130,6 +150,13 @@ exports.updateStatus = async (req, res) => {
   try {
     const { donationId, newStatus, note, location } = req.body;
 
+    if (newStatus === 'verified') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the NGO can verify a delivery and rate the volunteer.',
+      });
+    }
+
     const log = await DeliveryLog.findOne({ donation: donationId, volunteer: req.user._id });
     if (!log) return res.status(404).json({ success: false, message: 'Delivery log not found' });
 
@@ -144,33 +171,170 @@ exports.updateStatus = async (req, res) => {
     log.statusHistory.push({ status: newStatus, timestamp: new Date(), note, location });
 
     if (newStatus === 'delivered') log.deliveredAt = new Date();
-    if (newStatus === 'verified') {
-      log.verifiedAt = new Date();
-      // Update volunteer stats
-      await User.findByIdAndUpdate(req.user._id, {
-        $inc: { completedDeliveries: 1 },
-      });
-      // Update donation status
-      await Donation.findByIdAndUpdate(donationId, { status: 'verified' });
-    }
 
     if (newStatus === 'accepted') {
       await Donation.findByIdAndUpdate(donationId, { status: 'assigned' });
     }
+
+    let donationForNotify = null;
+
     if (newStatus === 'picked_up') {
-      await Donation.findByIdAndUpdate(donationId, { status: 'picked_up' });
+      const donation = await Donation.findById(donationId);
+      if (donation) {
+        const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+        donation.freshnessScore = freshnessScore;
+        donation.freshnessBadge = freshnessBadge;
+        donation.freshnessAtPickup = { score: freshnessScore, badge: freshnessBadge, recordedAt: new Date() };
+        donation.status = 'picked_up';
+        await donation.save();
+      }
     }
+
     if (newStatus === 'in_transit') {
       await Donation.findByIdAndUpdate(donationId, { status: 'in_transit' });
     }
 
+    if (newStatus === 'delivered') {
+      const donation = await Donation.findById(donationId);
+      if (donation) {
+        const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+        donation.freshnessScore = freshnessScore;
+        donation.freshnessBadge = freshnessBadge;
+        donation.freshnessAtDelivery = { score: freshnessScore, badge: freshnessBadge, recordedAt: new Date() };
+        donation.status = 'delivered';
+        await donation.save();
+        donationForNotify = donation;
+      }
+    }
+
     await log.save();
 
-    // Emit real-time update
     const io = req.app.get('io');
     io.to(`donation_${donationId}`).emit('status_update', { status: newStatus, log });
 
+    // Notify the NGO directly the moment it's marked delivered — they need
+    // to review and verify it, and won't necessarily have the tracking
+    // page open when this happens.
+    if (newStatus === 'delivered' && log.ngo) {
+      io.to(`ngo_${log.ngo}`).emit('delivery_ready_for_review', {
+        donationId,
+        foodName: donationForNotify?.foodName,
+        volunteerName: req.user.name,
+      });
+    }
+
     res.json({ success: true, log });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  PUT /api/tracking/verify  (NGO confirms receipt, rates, optionally badges)
+exports.verifyDelivery = async (req, res) => {
+  try {
+    const { donationId, rating, badge } = req.body;
+
+    if (rating !== undefined && (rating < 1 || rating > 5)) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+    }
+    if (badge && !NGO_AWARDABLE_BADGES.includes(badge)) {
+      return res.status(400).json({ success: false, message: 'Invalid badge selection.' });
+    }
+
+    const log = await DeliveryLog.findOne({ donation: donationId, ngo: req.user._id });
+    if (!log) return res.status(404).json({ success: false, message: 'Delivery log not found' });
+
+    if (log.currentStatus !== 'delivered') {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivery must be marked "Delivered" by the volunteer before you can verify it.',
+      });
+    }
+
+    log.currentStatus = 'verified';
+    log.verifiedAt = new Date();
+    if (rating) log.volunteerRating = rating;
+    log.statusHistory.push({ status: 'verified', timestamp: new Date(), note: 'Verified and rated by NGO' });
+    await log.save();
+
+    await Donation.findByIdAndUpdate(donationId, { status: 'verified' });
+
+    const volunteer = await User.findById(log.volunteer);
+    if (volunteer) {
+      const prevCompleted = volunteer.completedDeliveries || 0;
+      const newCompleted = prevCompleted + 1;
+
+      let newRating = volunteer.rating || 0;
+      if (rating) {
+        newRating = ((volunteer.rating || 0) * prevCompleted + rating) / newCompleted;
+      }
+
+      const badgeSet = new Set(volunteer.badges || []);
+      if (newCompleted === 1) badgeSet.add('First Delivery');
+      if (newCompleted === 10) badgeSet.add('10 Deliveries');
+      if (newCompleted === 50) badgeSet.add('50 Deliveries');
+      const hour = new Date().getHours();
+      if (hour >= 22 || hour < 5) badgeSet.add('Night Hero');
+      if (badge) badgeSet.add(badge);
+
+      volunteer.completedDeliveries = newCompleted;
+      volunteer.rating = Math.round(newRating * 10) / 10;
+      volunteer.badges = Array.from(badgeSet);
+      await volunteer.save();
+    }
+
+    const io = req.app.get('io');
+    io.to(`donation_${donationId}`).emit('status_update', { status: 'verified', log });
+
+    res.json({ success: true, log });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  PUT /api/tracking/spoiled  (volunteer reports food spoiled mid-delivery)
+exports.reportSpoiled = async (req, res) => {
+  try {
+    const { donationId, note } = req.body;
+
+    const log = await DeliveryLog.findOne({ donation: donationId, volunteer: req.user._id });
+    if (!log) return res.status(404).json({ success: false, message: 'Delivery log not found' });
+
+    if (!['picked_up', 'in_transit'].includes(log.currentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only report spoilage while actively holding the food (picked up or in transit).',
+      });
+    }
+
+    const donation = await Donation.findById(donationId);
+    if (!donation) return res.status(404).json({ success: false, message: 'Donation not found' });
+
+    const { freshnessScore, freshnessBadge } = calculateFreshness(donation);
+    const { option, reason } = getRecoveryRecommendation({
+      category: donation.category,
+      quantity: donation.quantity,
+      freshnessScore,
+    });
+
+    donation.status = 'expired';
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
+    donation.recoveryOption = option;
+    donation.recoveryReason = reason;
+    donation.spoiledAt = new Date();
+    donation.spoiledStage = 'in_delivery';
+    await donation.save();
+
+    log.statusHistory.push({ status: log.currentStatus, timestamp: new Date(), note: note || 'Reported spoiled during delivery' });
+    log.currentStatus = 'delivered';
+    log.deliveredAt = new Date();
+    await log.save();
+
+    const io = req.app.get('io');
+    io.to(`donation_${donationId}`).emit('status_update', { status: 'expired', log, spoiled: true });
+
+    res.json({ success: true, donation, log });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -200,7 +364,7 @@ exports.updateLocation = async (req, res) => {
 exports.getTrackingInfo = async (req, res) => {
   try {
     const log = await DeliveryLog.findOne({ donation: req.params.donationId })
-      .populate('volunteer', 'name phone rating location')
+      .populate('volunteer', 'name phone rating location badges')
       .populate('donor', 'name phone address location')
       .populate('ngo', 'name ngoName address location')
       .populate('donation');
@@ -234,6 +398,27 @@ exports.getVolunteerTasks = async (req, res) => {
       .limit(10);
 
     res.json({ success: true, active, completed });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+// @route  GET /api/tracking/pending-review  (NGO)
+// Deliveries this NGO has had marked "delivered" by a volunteer, but hasn't
+// verified/rated yet. This is the persistent source of truth — the socket
+// toast is just a live nudge, this endpoint is what actually shows the
+// receipt is waiting, even after a refresh or if the NGO missed the toast.
+exports.getPendingReview = async (req, res) => {
+  try {
+    const logs = await DeliveryLog.find({
+      ngo: req.user._id,
+      currentStatus: 'delivered',
+    })
+      .populate('donation')
+      .populate('volunteer', 'name phone rating badges')
+      .populate('donor', 'name phone address')
+      .sort({ deliveredAt: -1 });
+
+    res.json({ success: true, logs });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

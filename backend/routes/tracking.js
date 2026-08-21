@@ -7,15 +7,20 @@ const {
   updateLocation,
   getTrackingInfo,
   getVolunteerTasks,
-  recommendVolunteers,
-  rejectTask,
+  reportSpoiled,
+  getRecommendedVolunteers,
+  verifyDelivery,
+  getPendingReview,
 } = require('../controllers/trackingController');
 const { protect, authorize } = require('../middleware/auth');
 
-router.get('/recommend/:donationId', protect, authorize('ngo'), recommendVolunteers);
+router.get('/recommend/:donationId', protect, authorize('ngo'), getRecommendedVolunteers);
+router.get('/pending-review', protect, authorize('ngo'), getPendingReview);
 router.post('/assign', protect, authorize('ngo'), assignVolunteer);
 router.post('/reject', protect, authorize('volunteer'), rejectTask);
 router.put('/status', protect, authorize('volunteer'), updateStatus);
+router.put('/verify', protect, authorize('ngo'), verifyDelivery);
+router.put('/spoiled', protect, authorize('volunteer'), reportSpoiled);
 router.put('/location', protect, authorize('volunteer'), updateLocation);
 router.get('/tasks', protect, authorize('volunteer'), getVolunteerTasks);
 router.get('/:donationId', protect, getTrackingInfo);

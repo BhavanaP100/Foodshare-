@@ -3,22 +3,22 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const {
-  addDonation,
-  getMyDonations,
-  getAvailableDonations,
-  getAcceptedDonations,
-  getLateNightDonations,
-  acceptDonation,
-  getAllDonations,
-  getDonationById,
+addDonation,
+getMyDonations,
+getAvailableDonations,
+getLateNightDonations,
+acceptDonation,
+getAllDonations,
+getDonationById,
+markRecoveryAction,
 } = require('../controllers/donationController');
 const { protect, authorize } = require('../middleware/auth');
 
 // Multer config for food images
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) =>
-    cb(null, `food_${Date.now()}${path.extname(file.originalname)}`),
+destination: (req, file, cb) => cb(null, 'uploads/'),
+filename: (req, file, cb) =>
+cb(null, `food_${Date.now()}${path.extname(file.originalname)}`),
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -27,8 +27,8 @@ router.get('/my', protect, authorize('donor'), getMyDonations);
 router.get('/available', protect, authorize('ngo', 'volunteer'), getAvailableDonations);
 router.get('/accepted', protect, authorize('ngo'), getAcceptedDonations);
 router.get('/late-night', protect, getLateNightDonations);
-
-router.post('/:id/accept', protect, authorize('ngo'), acceptDonation);
+router.post('/:id/accept', protect, authorize('ngo', 'customer'), acceptDonation);
+router.put('/:id/recovery-action', protect, authorize('donor'), markRecoveryAction);
 router.get('/all', protect, authorize('admin'), getAllDonations);
 router.get('/:id', protect, getDonationById);
 

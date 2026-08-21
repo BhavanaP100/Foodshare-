@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { io } from 'socket.io-client';
+import { FiStar } from 'react-icons/fi';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { StatusBadge, Spinner } from '../../components/common/UIComponents';
 import { useAuth } from '../../context/AuthContext';
@@ -17,20 +18,41 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const createColoredIcon = (color, emoji) => L.divIcon({
-  html: `<div style="background:${color};width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.3);border:3px solid white;">${emoji}</div>`,
+// Distinct pin-style markers per role, with an optional pulse ring for the
+// volunteer's live position so it reads clearly as "moving/active" on the map.
+const createColoredIcon = (color, emoji, pulse = false) => L.divIcon({
+  html: `
+    <div style="position:relative;width:40px;height:40px;">
+      ${pulse ? `<div style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:0.35;animation:pulseRing 1.6s infinite;"></div>` : ''}
+      <div style="position:relative;background:${color};width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 12px rgba(0,0,0,0.3);border:3px solid white;margin:2px;">${emoji}</div>
+    </div>
+    <style>
+      @keyframes pulseRing {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        70% { transform: scale(1.6); opacity: 0; }
+        100% { transform: scale(1.6); opacity: 0; }
+      }
+    </style>
+  `,
   className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
 });
 
+// Volunteer-facing FSM. "Verify" is deliberately absent here — that step
+// belongs to the NGO, who actually receives the food and rates the volunteer.
 const FSM_TRANSITIONS = {
-  requested: { label: 'Accept Task', next: 'accepted', color: '#22c55e' },
+  requested: { label: 'Accept This Delivery', next: 'accepted', color: '#3b82f6' },
   accepted: { label: 'Mark as Picked Up', next: 'picked_up', color: '#f59e0b' },
   picked_up: { label: 'Mark In Transit', next: 'in_transit', color: '#0ea5e9' },
   in_transit: { label: 'Mark as Delivered', next: 'delivered', color: '#22c55e' },
-  delivered: { label: 'Verify Delivery', next: 'verified', color: '#8b5cf6' },
 };
+
+const NGO_AWARDABLE_BADGES = [
+  { value: 'Speed Star', icon: '⚡', desc: 'Delivered impressively fast' },
+  { value: 'Careful Handler', icon: '🤲', desc: 'Food arrived in great condition' },
+  { value: 'Community Hero', icon: '🌟', desc: 'Went above and beyond' },
+];
 
 function FitBounds({ positions }) {
   const map = useMap();
@@ -42,6 +64,20 @@ function FitBounds({ positions }) {
   return null;
 }
 
+function StarPicker({ value, onChange }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" onClick={() => onChange(n)} className="text-2xl leading-none">
+          <FiStar
+            style={{ fill: n <= value ? '#f59e0b' : 'none', color: n <= value ? '#f59e0b' : '#d1d5db' }}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function DeliveryTracking() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -51,13 +87,17 @@ export default function DeliveryTracking() {
   const socketRef = useRef(null);
   const [volunteerPos, setVolunteerPos] = useState(null);
 
+  // NGO verify/rate state
+  const [ratingValue, setRatingValue] = useState(5);
+  const [selectedBadge, setSelectedBadge] = useState('');
+  const [verifying, setVerifying] = useState(false);
+
   useEffect(() => {
     api.get(`/tracking/${id}`)
       .then(({ data }) => { if (data.success) setLog(data.log); })
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    // Socket.io for real-time
     socketRef.current = io('http://localhost:5000');
     socketRef.current.emit('join_room', `donation_${id}`);
     socketRef.current.on('status_update', ({ status }) => {
@@ -114,6 +154,35 @@ export default function DeliveryTracking() {
     });
   };
 
+  const reportSpoiled = async () => {
+    if (!window.confirm('Report this delivery as spoiled? This will end the delivery and mark the donation for recovery.')) return;
+    setUpdating(true);
+    try {
+      const { data } = await api.put('/tracking/spoiled', { donationId: id, note: 'Reported spoiled by volunteer' });
+      if (data.success) setLog(data.log);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to report');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    setVerifying(true);
+    try {
+      const { data } = await api.put('/tracking/verify', {
+        donationId: id,
+        rating: ratingValue,
+        badge: selectedBadge || undefined,
+      });
+      if (data.success) setLog(data.log);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to verify');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   if (loading) return (
     <DashboardLayout title="Delivery Tracking">
       <div className="flex justify-center py-24"><Spinner size={12} /></div>
@@ -129,6 +198,7 @@ export default function DeliveryTracking() {
   const donorCoords = log.donor?.location?.coordinates;
   const ngoCoords = log.ngo?.location?.coordinates;
   const volCoords = volunteerPos || (log.volunteerLocation ? [log.volunteerLocation.lat, log.volunteerLocation.lng] : null);
+  const volunteerActive = ['picked_up', 'in_transit'].includes(log.currentStatus);
 
   const mapPositions = [
     donorCoords ? [donorCoords[1], donorCoords[0]] : null,
@@ -162,13 +232,18 @@ export default function DeliveryTracking() {
 
               {ngoCoords && (
                 <Marker position={[ngoCoords[1], ngoCoords[0]]} icon={createColoredIcon('#0ea5e9', '🏠')}>
-                  <Popup><strong>Drop-off: {log.ngo?.ngoName}</strong><br />{log.ngo?.address}</Popup>
+                  <Popup><strong>Delivery Drop-off: {log.ngo?.ngoName}</strong><br />{log.ngo?.address}</Popup>
                 </Marker>
               )}
 
               {volCoords && (
-                <Marker position={volCoords} icon={createColoredIcon('#f59e0b', '🚴')}>
-                  <Popup><strong>Volunteer</strong><br />{log.volunteer?.name}</Popup>
+                <Marker position={volCoords} icon={createColoredIcon('#f59e0b', '🛵', volunteerActive)}>
+                  <Popup>
+                    <strong>Volunteer</strong><br />{log.volunteer?.name}
+                    {log.volunteer?.badges?.length > 0 && (
+                      <div style={{ marginTop: 4 }}>{log.volunteer.badges.join(', ')}</div>
+                    )}
+                  </Popup>
                 </Marker>
               )}
 
@@ -182,7 +257,7 @@ export default function DeliveryTracking() {
 
           {/* Legend */}
           <div className="flex gap-4 mt-3 flex-wrap">
-            {[['#22c55e','📦','Pickup (Donor)'],['#0ea5e9','🏠','Drop-off (NGO)'],['#f59e0b','🚴','Volunteer']].map(([c,e,l]) => (
+            {[['#22c55e','📦','Pickup (Donor)'],['#0ea5e9','🏠','Delivery Drop-off (NGO)'],['#f59e0b','🛵','Volunteer']].map(([c,e,l]) => (
               <div key={l} className="flex items-center gap-2 text-xs text-gray-500">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm" style={{ background: c }}>{e}</div>
                 {l}
@@ -205,6 +280,13 @@ export default function DeliveryTracking() {
               <div className="flex justify-between"><span className="text-gray-400">Donor</span><span className="font-medium text-gray-700">{log.donor?.name}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">NGO</span><span className="font-medium text-gray-700">{log.ngo?.ngoName || log.ngo?.name}</span></div>
             </div>
+            {log.volunteer?.badges?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-50">
+                {log.volunteer.badges.map(b => (
+                  <span key={b} className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-medium">🏅 {b}</span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* FSM Progress */}
@@ -226,7 +308,7 @@ export default function DeliveryTracking() {
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Volunteer action buttons */}
           {user?.role === 'volunteer' && (
             <div className="space-y-3">
               {transition && (
@@ -240,16 +322,18 @@ export default function DeliveryTracking() {
                   {updating ? 'Updating…' : transition.label}
                 </motion.button>
               )}
-              {log.currentStatus === 'requested' && (
+
+              {['picked_up', 'in_transit'].includes(log.currentStatus) && (
                 <motion.button
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                  onClick={declineTask}
-                  disabled={rejecting}
-                  className="w-full py-3 rounded-xl text-red-500 font-medium text-sm border-2 border-red-100 bg-red-50 disabled:opacity-50"
+                  onClick={reportSpoiled}
+                  disabled={updating}
+                  className="w-full py-3 rounded-xl text-red-600 font-medium text-sm border-2 border-red-200 bg-red-50"
                 >
-                  {rejecting ? 'Declining…' : '✕ Decline This Task'}
+                  ⚠️ Report Spoiled / Can't Deliver
                 </motion.button>
               )}
+
               {log.currentStatus === 'accepted' && (
                 <motion.button
                   whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
@@ -258,6 +342,11 @@ export default function DeliveryTracking() {
                 >
                   📍 Share Live Location
                 </motion.button>
+              )}
+              {log.currentStatus === 'delivered' && (
+                <div className="text-center py-4 text-blue-600 font-semibold text-sm">
+                  ✅ Delivered — waiting for the NGO to confirm receipt.
+                </div>
               )}
               {log.currentStatus === 'verified' && (
                 <div className="text-center py-4 text-green-600 font-semibold">
@@ -269,6 +358,53 @@ export default function DeliveryTracking() {
                   You declined this task. The NGO has been notified to reassign it.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* NGO verify + rate + badge panel */}
+          {user?.role === 'ngo' && log.currentStatus === 'delivered' && (
+            <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #dbeafe', boxShadow: '0 4px 16px rgba(0,0,0,0.05)' }}>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Confirm Receipt & Rate Volunteer</h4>
+              <div className="mb-4">
+                <label className="block text-xs text-gray-500 mb-1.5">How was {log.volunteer?.name}'s delivery?</label>
+                <StarPicker value={ratingValue} onChange={setRatingValue} />
+              </div>
+              <div className="mb-4">
+                <label className="block text-xs text-gray-500 mb-1.5">Award a badge (optional)</label>
+                <div className="flex flex-wrap gap-2">
+                  {NGO_AWARDABLE_BADGES.map((b) => (
+                    <button
+                      key={b.value}
+                      type="button"
+                      onClick={() => setSelectedBadge(selectedBadge === b.value ? '' : b.value)}
+                      title={b.desc}
+                      className="text-xs px-3 py-1.5 rounded-full font-medium border transition-all"
+                      style={{
+                        borderColor: selectedBadge === b.value ? '#3b82f6' : '#e5e7eb',
+                        background: selectedBadge === b.value ? '#dbeafe' : '#fff',
+                        color: selectedBadge === b.value ? '#1e40af' : '#6b7280',
+                      }}
+                    >
+                      {b.icon} {b.value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                onClick={handleVerify}
+                disabled={verifying}
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm"
+                style={{ background: verifying ? '#93c5fd' : 'linear-gradient(135deg, #3b82f6, #2563eb)', boxShadow: '0 4px 16px rgba(59,130,246,0.35)' }}
+              >
+                {verifying ? 'Confirming…' : '✅ Confirm Receipt & Verify'}
+              </motion.button>
+            </div>
+          )}
+
+          {user?.role === 'ngo' && log.currentStatus === 'verified' && (
+            <div className="text-center py-4 text-green-600 font-semibold bg-white rounded-2xl" style={{ border: '1.5px solid #f0fdf4' }}>
+              🎉 Delivery verified! Thanks for rating {log.volunteer?.name}.
             </div>
           )}
 

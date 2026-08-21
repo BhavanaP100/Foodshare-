@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+
 import {
   FiGrid, FiPlusCircle, FiPackage, FiMapPin, FiBarChart2,
-  FiMoon, FiLogOut, FiMenu, FiX, FiUser, FiBell, FiSettings, FiCheckSquare
+  FiMoon, FiLogOut, FiMenu, FiX, FiUser, FiBell, FiSettings,
+  FiCheckCircle, FiAlertTriangle
 } from 'react-icons/fi';
 
 const NAV_BY_ROLE = {
   donor: [
     { label: 'Dashboard', icon: FiGrid, path: '/donor' },
     { label: 'Add Donation', icon: FiPlusCircle, path: '/donor/add' },
+    { label: 'Donated Food', icon: FiCheckCircle, path: '/donor/completed' },
+    { label: 'Expired Food', icon: FiAlertTriangle, path: '/donor/expired' },
     { label: 'Impact', icon: FiBarChart2, path: '/impact' },
     { label: 'Late Night', icon: FiMoon, path: '/late-night' },
   ],
@@ -54,7 +58,7 @@ export default function DashboardLayout({ children, title }) {
     volunteer: '#f59e0b',
     admin: '#8b5cf6',
   };
-  const roleColor = roleColors[user?.role] || '#22c55e';
+  const roleColor = roleColors[user?.role] || '#61cc59';
 
   return (
     <div className="flex min-h-screen bg-gray-50">

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -212,15 +211,14 @@ export default function Register() {
 
                     {form.role === 'volunteer' && (
                       <div className="col-span-2 pt-2">
-                        <p className="text-xs font-semibold text-gray-700 mb-2">Your Base Location (optional)</p>
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Your Location (optional but recommended)</p>
                         <p className="text-xs text-gray-400 mb-3">
-                          Helps NGOs recommend you for pickups near you. You can skip this and add it later in Settings,
-                          but you won't show up in distance-based recommendations until it's set.
+                          Helps NGOs recommend you for nearby deliveries. You can add or update this later in Settings.
                         </p>
                         <LocationPicker
                           value={form.volunteerLocation}
                           onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
-                          addressLabel="Your Area / Address"
+                          addressLabel="Your Address"
                         />
                       </div>
                     )}

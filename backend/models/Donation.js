@@ -24,15 +24,30 @@ const donationSchema = new mongoose.Schema(
     pickupAddress: { type: String, required: true },
     location: {
       type: { type: String, default: 'Point' },
-      coordinates: { type: [Number], required: true }, // [lng, lat]
+      coordinates: { type: [Number], required: true },
     },
 
-    // Freshness scoring (calculated)
     freshnessScore: { type: Number, default: 100 },
     freshnessBadge: {
       type: String,
       enum: ['Fresh', 'Good', 'Use Soon', 'Critical'],
       default: 'Fresh',
+    },
+
+    freshnessAtAcceptance: {
+      score: { type: Number },
+      badge: { type: String },
+      recordedAt: { type: Date },
+    },
+    freshnessAtPickup: {
+      score: { type: Number },
+      badge: { type: String },
+      recordedAt: { type: Date },
+    },
+    freshnessAtDelivery: {
+      score: { type: Number },
+      badge: { type: String },
+      recordedAt: { type: Date },
     },
 
     status: {
@@ -45,21 +60,32 @@ const donationSchema = new mongoose.Schema(
     matchedAt: { type: Date }, // when the NGO accepted this donation
     assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     mealsEquivalent: { type: Number, default: 0 },
-    co2Saved: { type: Number, default: 0 }, // kg
+    co2Saved: { type: Number, default: 0 },
 
-    // Rule-based recovery recommendation -- set when a donation can no
-    // longer be safely redistributed (freshness hit 0 / deadline passed
-    // while still pending). This is a RECOMMENDATION only; the platform
-    // does not claim to physically route food anywhere.
-    recoveryRecommendation: {
-      needed: { type: Boolean, default: false },
-      pathway: { type: String }, // e.g. 'Composting', 'Biogas / Anaerobic Digestion'
-      reason: { type: String },
-      recommendedAt: { type: Date },
+    // Recovery — populated when a donation expires (missed pickup deadline)
+    // or is reported spoiled mid-delivery by a volunteer.
+    recoveryOption: {
+      type: String,
+      enum: ['compost', 'animal_feed', 'biogas', 'discard_safely'],
     },
+    recoveryReason: { type: String },
+    spoiledAt: { type: Date },
+    spoiledStage: {
+      type: String,
+      enum: ['missed_pickup', 'in_delivery'],
+    },
+    recoveryActionTaken: { type: Boolean, default: false },
+recoveryActionTakenAt: { type: Date },
+
+    // Capacity-based split — set when a donation's quantity exceeded the
+    // accepting NGO's capacity and had to be divided; the remainder becomes
+    // a new separate Donation document (see acceptDonation).
+    wasSplit: { type: Boolean, default: false },
+    originalQuantity: { type: Number },
   },
   { timestamps: true }
 );
+
 
 donationSchema.index({ location: '2dsphere' });
 donationSchema.index({ status: 1 });

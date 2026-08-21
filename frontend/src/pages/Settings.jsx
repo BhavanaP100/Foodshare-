@@ -33,6 +33,7 @@ export default function Settings() {
       ? { address: user.address || '', lat: user.location.coordinates[1], lng: user.location.coordinates[0] }
       : { address: user?.address || '', lat: '', lng: '' },
   });
+  
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -201,44 +202,36 @@ export default function Settings() {
               </div>
             )}
 
-            {/* Volunteer: availability + verification + base location */}
+            {/* Volunteer: availability + location */}
             {user?.role === 'volunteer' && (
-              <div className={cardClass} style={cardStyle}>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-800 text-sm">Availability</h3>
-                  {user?.isVerified ? (
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#dcfce7', color: '#15803d' }}>✓ Verified</span>
-                  ) : (
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>Pending Verification</span>
-                  )}
+              <>
+                <div className={cardClass} style={cardStyle}>
+                  <h3 className="font-semibold text-gray-800 mb-4 text-sm">Availability</h3>
+                  <div className="flex gap-3">
+                    {[{ v: true, l: '🟢 Available for deliveries' }, { v: false, l: '⏸️ Not available right now' }].map(({ v, l }) => (
+                      <button
+                        type="button" key={String(v)}
+                        onClick={() => setForm({ ...form, isAvailable: v })}
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all ${form.isAvailable === v ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500'}`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {!user?.isVerified && (
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2.5 mb-4">
-                    An admin needs to verify your account before you'll be recommended to NGOs for pickups. This isn't a legal
-                    food-handler certification — just an in-app trust check.
+
+                <div className={cardClass} style={cardStyle}>
+                  <h3 className="font-semibold text-gray-800 mb-1 text-sm">Your Location</h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Used to recommend you for nearby deliveries when an NGO accepts a donation.
                   </p>
-                )}
-                <div className="flex gap-3 mb-5">
-                  {[{ v: true, l: '🟢 Available for deliveries' }, { v: false, l: '⏸️ Not available right now' }].map(({ v, l }) => (
-                    <button
-                      type="button" key={String(v)}
-                      onClick={() => setForm({ ...form, isAvailable: v })}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all ${form.isAvailable === v ? 'border-green-400 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500'}`}
-                    >
-                      {l}
-                    </button>
-                  ))}
+                  <LocationPicker
+                    value={form.volunteerLocation}
+                    onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
+                    addressLabel="Your Address"
+                  />
                 </div>
-                <h3 className="font-semibold text-gray-800 mb-1 text-sm">Your Base Location</h3>
-                <p className="text-xs text-gray-400 mb-4">
-                  Used to recommend you for pickups near you. Without this, NGOs can still see you but won't know your distance.
-                </p>
-                <LocationPicker
-                  value={form.volunteerLocation}
-                  onChange={(loc) => setForm({ ...form, volunteerLocation: { ...form.volunteerLocation, ...loc } })}
-                  addressLabel="Your Area / Address"
-                />
-              </div>
+              </>
             )}
 
             {/* Admin: nothing role-specific beyond basic profile */}
