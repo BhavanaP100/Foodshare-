@@ -9,9 +9,12 @@ import DonorDashboard from './pages/donor/DonorDashboard';
 import AddFood from './pages/donor/AddFood';
 import CompletedDonations from './pages/donor/CompletedDonations';
 import ExpiredDonations from './pages/donor/ExpiredDonations';
+
 import NGODashboard from './pages/ngo/NGODashboard';
 import AvailableDonations from './pages/ngo/AvailableDonations';
 import AcceptedFood from './pages/ngo/AcceptedFood';
+import ExpiredFood from './pages/ngo/ExpiredFood';
+
 import VolunteerDashboard from './pages/volunteer/VolunteerDashboard';
 import DeliveryTracking from './pages/volunteer/DeliveryTracking';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -48,6 +51,7 @@ export default function App() {
       <Route path="/ngo" element={<ProtectedRoute allowedRoles={['ngo']}><NGODashboard /></ProtectedRoute>} />
       <Route path="/ngo/donations" element={<ProtectedRoute allowedRoles={['ngo']}><AvailableDonations /></ProtectedRoute>} />
       <Route path="/ngo/accepted" element={<ProtectedRoute allowedRoles={['ngo']}><AcceptedFood /></ProtectedRoute>} />
+      <Route path="/ngo/expired" element={<ProtectedRoute allowedRoles={['ngo']}><ExpiredFood /></ProtectedRoute>} />
 
       {/* Volunteer */}
       <Route path="/volunteer" element={<ProtectedRoute allowedRoles={['volunteer']}><VolunteerDashboard /></ProtectedRoute>} />
@@ -56,7 +60,7 @@ export default function App() {
       {/* Admin */}
       <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
 
-      {/* Fallback */}
+      {/* Fallback — must always be LAST, otherwise it intercepts every route above it */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

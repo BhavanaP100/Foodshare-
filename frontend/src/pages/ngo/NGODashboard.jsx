@@ -1,3 +1,5 @@
+
+
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,11 +19,9 @@ export default function NGODashboard() {
   const [accepting, setAccepting] = useState(null);
   const [locationMissing, setLocationMissing] = useState(false);
 
-  // Donations this NGO has accepted but not yet assigned a volunteer to,
-  // plus recommended volunteers for each.
-  const [needsVolunteer, setNeedsVolunteer] = useState([]);
-  const [recommendations, setRecommendations] = useState({}); // donationId -> [{ _id, name, distance, score, ... }]
-  const [assigning, setAssigning] = useState(null);
+  // Real accepted-donations source — /donations/available only ever
+  // returns pending donations, so "accepted" can't be derived from it.
+  const [acceptedDonations, setAcceptedDonations] = useState([]);
 
   // Deliveries marked "delivered" by a volunteer, awaiting this NGO's
   // review/verification — fetched from a real endpoint so it survives
@@ -53,6 +53,12 @@ export default function NGODashboard() {
       .finally(() => setLoading(false));
   };
 
+  const fetchAccepted = () => {
+    api.get('/donations/my-accepted')
+      .then(({ data }) => { if (data.success) setAcceptedDonations(data.donations); })
+      .catch(() => {});
+  };
+
   const fetchPendingReview = () => {
     setReviewLoading(true);
     api.get('/tracking/pending-review')
@@ -63,12 +69,13 @@ export default function NGODashboard() {
 
   useEffect(() => {
     fetchDonations();
+    fetchAccepted();
     fetchPendingReview();
   }, []);
 
   // Join this NGO's personal notification room so we hear about deliveries
   // the moment a volunteer marks them delivered. Also re-fetches the
-  // persistent pending-review list so it's never stale/missed.
+  // persistent pending-review + accepted lists so nothing is ever stale.
   useEffect(() => {
     if (!user?._id) return;
     const socket = io('http://localhost:5000');
@@ -76,6 +83,7 @@ export default function NGODashboard() {
     socket.on('delivery_ready_for_review', (payload) => {
       setReviewNotification(payload);
       fetchPendingReview();
+      fetchAccepted();
     });
     return () => socket.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,12 +92,9 @@ export default function NGODashboard() {
   const handleAccept = async (id) => {
     setAccepting(id);
     try {
-      const { data } = await api.post(`/donations/${id}/accept`);
-      setDonations(prev => prev.map(d => d._id === id ? { ...d, status: 'matched' } : d));
-      if (data.success && data.donation) {
-        setNeedsVolunteer(prev => [...prev, data.donation]);
-        loadRecommendations(data.donation._id);
-      }
+      await api.post(`/donations/${id}/accept`);
+      setDonations(prev => prev.filter(d => d._id !== id));
+      fetchAccepted();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to accept');
     } finally {
@@ -97,39 +102,9 @@ export default function NGODashboard() {
     }
   };
 
-  const loadRecommendations = async (donationId) => {
-    try {
-      const { data } = await api.get(`/tracking/recommend/${donationId}`);
-      if (data.success) {
-        setRecommendations(prev => ({ ...prev, [donationId]: data.recommendations }));
-      }
-    } catch (err) {
-      // silently ignore — NGO can still assign manually via /volunteer/available if this fails
-    }
-  };
-
-  const handleAssign = async (donationId, volunteerId) => {
-    setAssigning(donationId);
-    try {
-      const { data } = await api.post('/tracking/assign', { donationId, volunteerId });
-      if (data.success) {
-        setNeedsVolunteer(prev => prev.filter(d => d._id !== donationId));
-        setRecommendations(prev => {
-          const next = { ...prev };
-          delete next[donationId];
-          return next;
-        });
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to assign volunteer');
-    } finally {
-      setAssigning(null);
-    }
-  };
-
   const filtered = donations.filter(d => d.foodName?.toLowerCase().includes(search.toLowerCase()));
   const pending = filtered.filter(d => d.status === 'pending');
-  const accepted = filtered.filter(d => d.status !== 'pending');
+  const needsVolunteerCount = acceptedDonations.filter(d => d.status === 'matched').length;
 
   return (
     <DashboardLayout title="NGO Dashboard">
@@ -173,12 +148,13 @@ export default function NGODashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon="🍽️" label="Available Now" value={pending.length} color="#22c55e" delay={0} />
-        <StatCard icon="✅" label="Accepted" value={accepted.length} color="#0ea5e9" delay={0.1} />
+        <StatCard icon="✅" label="Accepted" value={acceptedDonations.length} color="#0ea5e9" delay={0.1} />
         <StatCard icon="🔴" label="Critical / Urgent" value={donations.filter(d => d.urgencyLevel === 'critical').length} color="#ef4444" delay={0.2} />
         <StatCard icon="📍" label={`Within ${filters.maxDistance} km`} value={donations.length} color="#f59e0b" delay={0.3} />
       </div>
 
-      {/* Awaiting Review — persistent list, survives refresh */}
+      {/* Awaiting Review — persistent list, survives refresh, this is the
+          real source of truth (not just the live toast above) */}
       {!reviewLoading && pendingReview.length > 0 && (
         <div className="mb-6">
           <SectionHeader title="📋 Awaiting Your Review" sub={`${pendingReview.length} delivered — confirm receipt & rate`} />
@@ -207,96 +183,32 @@ export default function NGODashboard() {
         </div>
       )}
 
-      {/* Needs Volunteer — recommendation panel */}
-{needsVolunteer.length > 0 && (
-  <div className="mb-6">
-    <SectionHeader title="🚴 Needs a Volunteer" sub="Accepted donations awaiting pickup assignment" />
-    <div className="space-y-4">
-      {needsVolunteer.map((d) => (
-        <div key={d._id} className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.05)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="font-semibold text-sm text-gray-800">{d.foodName}</div>
-              <div className="text-xs text-gray-400">{d.pickupAddress}</div>
-            </div>
-          </div>
-          {!recommendations[d._id] ? (
-            <div className="flex justify-center py-4"><Spinner size={6} /></div>
-          ) : recommendations[d._id].length === 0 ? (
-            <p className="text-xs text-gray-400">No verified volunteers available nearby right now.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {recommendations[d._id].slice(0, 4).map((v, idx) => (
-                <motion.div
-                  key={v._id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ y: -2, boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="p-3 rounded-xl relative"
-                  style={{ background: idx === 0 ? '#eff6ff' : '#f9fafb', border: idx === 0 ? '1.5px solid #93c5fd' : '1.5px solid transparent' }}
-                >
-                  {idx === 0 && (
-                    <span className="absolute -top-2 left-3 text-xs font-bold px-2 py-0.5 rounded-full bg-blue-600 text-white">
-                      Best Match
-                    </span>
-                  )}
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
-                      {v.name?.[0]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium text-gray-800 truncate">{v.name}</div>
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <span className="flex items-center gap-0.5"><FiMapPin size={10} /> {v.distance} km</span>
-                        <span className="flex items-center gap-0.5"><FiStar size={10} /> {v.rating?.toFixed(1)}</span>
-                        {v.isAvailable && <span className="text-green-500">● Available</span>}
-                      </div>
-                    </div>
-                    <span className="text-xs font-bold text-blue-600">{v.score}</span>
+      {/* Nudge card to Accepted Food page */}
+      {acceptedDonations.length > 0 && (
+        <div className="mb-6">
+          <Link to="/ngo/accepted">
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              className="rounded-2xl p-5 flex items-center justify-between cursor-pointer"
+              style={{ background: '#eff6ff', border: '1.5px solid #93c5fd' }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🚴</span>
+                <div>
+                  <div className="text-sm font-semibold text-blue-900">
+                    {needsVolunteerCount > 0
+                      ? `${needsVolunteerCount} accepted donation${needsVolunteerCount !== 1 ? 's' : ''} need a volunteer`
+                      : `${acceptedDonations.length} accepted donation${acceptedDonations.length !== 1 ? 's' : ''} in progress`}
                   </div>
-
-                  {/* Score breakdown bars — makes the recommendation transparent */}
-                  <div className="space-y-1 mb-2">
-                    {[
-                      ['Distance', v.distanceScore, '#22c55e'],
-                      ['Rating', v.ratingScore, '#f59e0b'],
-                      ['Availability', v.availabilityScore, '#0ea5e9'],
-                    ].map(([label, val, color]) => (
-                      <div key={label} className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 w-16 flex-shrink-0">{label}</span>
-                        <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${val}%`, background: color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {v.badges?.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {v.badges.slice(0, 2).map(b => (
-                        <span key={b} className="text-xs px-1.5 py-0.5 rounded-full bg-white text-gray-500 border border-gray-100">🏅 {b}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  <motion.button
-                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                    onClick={() => handleAssign(d._id, v._id)}
-                    disabled={assigning === d._id}
-                    className="flex items-center justify-center gap-1 text-xs font-medium text-white bg-blue-600 px-3 py-1.5 rounded-lg w-full"
-                  >
-                    <FiUserCheck size={12} /> Assign
-                  </motion.button>
-                </motion.div>
-              ))}
-            </div>
-          )}
+                  <div className="text-xs text-blue-700 mt-0.5">Track accepted donations and assign volunteers</div>
+                </div>
+              </div>
+              <FiArrowRight className="text-blue-600" size={18} />
+            </motion.div>
+          </Link>
         </div>
-      ))}
-    </div>
-  </div>
-)}
+      )}
+
       {/* Filters Bar */}
       <div className="bg-white rounded-2xl p-4 mb-6 flex flex-wrap gap-3 items-center" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
         <div className="relative flex-1 min-w-48">

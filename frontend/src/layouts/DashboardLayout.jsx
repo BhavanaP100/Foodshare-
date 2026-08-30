@@ -18,12 +18,14 @@ const NAV_BY_ROLE = {
     { label: 'Impact', icon: FiBarChart2, path: '/impact' },
     { label: 'Late Night', icon: FiMoon, path: '/late-night' },
   ],
+
   ngo: [
-    { label: 'Dashboard', icon: FiGrid, path: '/ngo' },
-    { label: 'Available Food', icon: FiPackage, path: '/ngo/donations' },
-    { label: 'Accepted Food', icon: FiCheckCircle, path: '/ngo/accepted' },
-    { label: 'Impact', icon: FiBarChart2, path: '/impact' },
-  ],
+  { label: 'Dashboard', icon: FiGrid, path: '/ngo' },
+  { label: 'Available Food', icon: FiPackage, path: '/ngo/donations' },
+  { label: 'Accepted Food', icon: FiCheckCircle, path: '/ngo/accepted' },
+  { label: 'Expired Food', icon: FiAlertTriangle, path: '/ngo/expired' },
+  { label: 'Impact', icon: FiBarChart2, path: '/impact' },
+],
   volunteer: [
     { label: 'Dashboard', icon: FiGrid, path: '/volunteer' },
     { label: 'Late Night', icon: FiMoon, path: '/late-night' },
