@@ -26,6 +26,27 @@ const calculateFreshness = (donation) => {
   const cooked = new Date(cookedTime).getTime();
   const deadline = new Date(pickupDeadline).getTime();
 
+  // Guard: cookedTime is the only value the decay curve actually depends
+  // on. If it is missing or not a parseable date, hoursElapsed becomes NaN
+  // and would silently propagate through every downstream calculation,
+  // producing freshnessScore = NaN — which breaks the 0-100 contract
+  // (NaN passes neither `>= 0` nor `<= 100`, so Math.max/Math.min cannot
+  // clamp it). Since cookedTime is a required field at the schema level,
+  // this should only be reachable if calculateFreshness is called on
+  // unvalidated input (e.g. directly from a request body before Mongoose
+  // validation runs). Rather than let bad input surface as NaN, treat it
+  // as "cannot assess freshness" and fail safe to the most conservative
+  // (Critical) reading, flagged explicitly so callers can tell this was a
+  // fallback rather than a real decay calculation.
+  if (Number.isNaN(cooked)) {
+    return {
+      freshnessScore: 0,
+      freshnessBadge: 'Critical',
+      urgencyLevel: 'critical',
+      freshnessError: 'Invalid or missing cookedTime — freshness could not be calculated.',
+    };
+  }
+
   const hoursElapsed = (now - cooked) / (1000 * 60 * 60);
 
   const maxSafeHours = {
@@ -44,7 +65,11 @@ const calculateFreshness = (donation) => {
 
   const effectiveDecay = (hoursElapsed * riskMultiplier * storageBoost) / maxHours;
 
-  const deadlineFactor = (deadline - now) / (1000 * 60 * 60); // hours left, can go negative
+  // hours left, can go negative. If pickupDeadline is missing/invalid,
+  // deadlineFactor is NaN — both comparisons below evaluate to false, so
+  // this simply skips the deadline-based adjustment rather than corrupting
+  // freshnessScore (which is already a valid, bounded number at this point).
+  const deadlineFactor = (deadline - now) / (1000 * 60 * 60);
 
   const quantityPressure = quantity > 50 ? 0.95 : 1.0;
 

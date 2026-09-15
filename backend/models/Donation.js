@@ -10,7 +10,7 @@ const donationSchema = new mongoose.Schema(
       required: true,
     },
     isVeg: { type: Boolean, default: true },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: [0.01, 'Quantity must be greater than 0'] },
     quantityUnit: { type: String, enum: ['kg', 'litres', 'servings', 'packets'], default: 'kg' },
     cookedTime: { type: Date, required: true },
     storageCondition: {
