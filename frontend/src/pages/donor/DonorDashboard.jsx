@@ -11,6 +11,7 @@ export default function DonorDashboard() {
   const { user } = useAuth();
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [historical, setHistorical] = useState(null);
 
   useEffect(() => {
     api.get('/donations/my')
@@ -19,6 +20,12 @@ export default function DonorDashboard() {
         console.log("Failed to fetch donation",err);
       })
       .finally(() => setLoading(false));
+
+    // Phase 2 — rule-based historical analysis, scoped to this donor's own
+    // organization (backend filters by donor: req.user._id).
+    api.get('/analytics/historical')
+      .then(({ data }) => { if (data.success) setHistorical(data.analysis); })
+      .catch(() => {});
   }, []);
 
   const active = donations.filter(d => ['pending', 'matched', 'assigned', 'picked_up', 'in_transit'].includes(d.status));
@@ -122,6 +129,89 @@ export default function DonorDashboard() {
               <FoodCard key={d._id} donation={d} delay={i * 0.05} />
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Historical Analysis — Phase 2 (rule-based, scoped to this organization's own donation history) */}
+      <div className="bg-white rounded-2xl p-5 mt-6" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+        <SectionHeader
+          title="Historical Analysis"
+          sub="Rule-Based Recommendations — based on your organization's own donation history"
+        />
+
+        {!historical && (
+          <p className="text-center text-gray-400 text-sm py-8">Loading historical analysis…</p>
+        )}
+
+        {historical?.insufficientData && (
+          <p className="text-center text-gray-400 text-sm py-8">
+            Insufficient historical data to generate a reliable recommendation
+            ({historical.recordCount} of {historical.minimumRequired} minimum donation records collected so far).
+          </p>
+        )}
+
+        {historical && !historical.insufficientData && (
+          <>
+            {/* Historical Overview */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="p-3 rounded-xl text-center" style={{ background: '#f9fafb' }}>
+                <div className="text-lg font-bold text-gray-800">{historical.recordCount}</div>
+                <div className="text-[11px] text-gray-400">Total Donations</div>
+              </div>
+              <div className="p-3 rounded-xl text-center" style={{ background: '#f0fdf4' }}>
+                <div className="text-lg font-bold text-green-700">{historical.outcomeBreakdown.verified}</div>
+                <div className="text-[11px] text-gray-400">Successful</div>
+              </div>
+              <div className="p-3 rounded-xl text-center" style={{ background: '#fef2f2' }}>
+                <div className="text-lg font-bold text-red-600">{historical.outcomeBreakdown.expired}</div>
+                <div className="text-[11px] text-gray-400">Expired</div>
+              </div>
+              <div className="p-3 rounded-xl text-center" style={{ background: '#f9fafb' }}>
+                <div className="text-lg font-bold text-gray-800 capitalize">{historical.categoryDistribution[0]?.category || '—'}</div>
+                <div className="text-[11px] text-gray-400">Dominant Category</div>
+              </div>
+            </div>
+
+            {/* Detected Patterns */}
+            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Detected Patterns</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 text-sm">
+              <div className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: '#f9fafb' }}>
+                <span className="text-gray-600">Recurring category</span>
+                <span className="font-medium text-gray-800 capitalize">
+                  {historical.categoryDistribution[0]?.category} ({Math.round((historical.categoryDistribution[0]?.share || 0) * 100)}%)
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: '#f9fafb' }}>
+                <span className="text-gray-600">Recurring time period</span>
+                <span className="font-medium text-gray-800">
+                  {historical.timeWindowDistribution[0]?.label} ({Math.round((historical.timeWindowDistribution[0]?.share || 0) * 100)}%)
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: '#f9fafb' }}>
+                <span className="text-gray-600">Overall success rate</span>
+                <span className="font-medium text-gray-800">{Math.round(historical.outcomeBreakdown.successRate * 100)}%</span>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: '#f9fafb' }}>
+                <span className="text-gray-600">Quantity trend ({historical.quantityTrend.windowDays}d)</span>
+                <span className="font-medium text-gray-800">
+                  {historical.quantityTrend.changeRatio === null
+                    ? 'Not enough prior-period data'
+                    : `${historical.quantityTrend.changeRatio >= 0 ? '+' : ''}${Math.round(historical.quantityTrend.changeRatio * 100)}%`}
+                </span>
+              </div>
+            </div>
+
+            {/* Actionable Recommendations */}
+            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Actionable Recommendations</h4>
+            <div className="space-y-2">
+              {historical.recommendations.map((r, i) => (
+                <div key={i} className="p-3 rounded-xl" style={{ background: '#f0fdf4', border: '1px solid #dcfce7' }}>
+                  <div className="text-sm text-gray-800 mb-1">{r.recommendation}</div>
+                  <div className="text-xs text-gray-400">{r.basis}</div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </DashboardLayout>
