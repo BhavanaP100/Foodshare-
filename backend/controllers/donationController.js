@@ -9,6 +9,21 @@ const {
   kgToCO2Saved,
 } = require('../utils/algorithms');
 
+// Haversine distance formula to calculate distance between two coordinates (in km)
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // distance in km
+};
+
 // Auto-expire a donation only when BOTH its pickup deadline has passed AND
 // its real freshness (decay curve) has actually dropped to critical —
 // this stops well-stored/packaged food from being yanked into "expired"
@@ -75,6 +90,41 @@ exports.addDonation = async (req, res) => {
         success: false,
         message: 'Pickup location is required. Set a default pickup location in Settings or provide one for this donation.',
       });
+    }
+
+    // Server-side date/quantity sanity checks. These exist independently of
+    // any frontend validation because API requests can bypass the UI.
+    // - quantity must be a positive number (a zero/negative quantity would
+    //   make capacityScore divide-by-zero in the matching algorithm).
+    // - cookedTime cannot be in the future (a small clock-skew tolerance is
+    //   allowed) — otherwise a donor could claim food isn't cooked yet and
+    //   still have it rank as maximally fresh.
+    // - pickupDeadline must be after cookedTime and still in the future at
+    //   creation time — a donation that is already past its own deadline
+    //   the moment it's created isn't meaningful.
+    const parsedQuantity = Number(quantity);
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      return res.status(400).json({ success: false, message: 'Quantity must be a positive number.' });
+    }
+
+    const cookedMs = new Date(cookedTime).getTime();
+    const deadlineMs = new Date(pickupDeadline).getTime();
+    const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
+
+    if (!cookedTime || Number.isNaN(cookedMs)) {
+      return res.status(400).json({ success: false, message: 'A valid cooked/prepared time is required.' });
+    }
+    if (cookedMs - Date.now() > CLOCK_SKEW_TOLERANCE_MS) {
+      return res.status(400).json({ success: false, message: 'Cooked/prepared time cannot be in the future.' });
+    }
+    if (!pickupDeadline || Number.isNaN(deadlineMs)) {
+      return res.status(400).json({ success: false, message: 'A valid pickup deadline is required.' });
+    }
+    if (deadlineMs <= cookedMs) {
+      return res.status(400).json({ success: false, message: 'Pickup deadline must be after the cooked/prepared time.' });
+    }
+    if (deadlineMs <= Date.now()) {
+      return res.status(400).json({ success: false, message: 'Pickup deadline must be in the future.' });
     }
 
     const donationData = {
@@ -297,9 +347,47 @@ exports.acceptDonation = async (req, res) => {
 
     donation.status = 'matched';
     donation.matchedNGO = req.user._id;
+    donation.matchedAt = new Date();
+    // Persist the just-recalculated freshness too, so anyone viewing this
+    // donation afterward sees the value it was actually accepted at.
+    donation.freshnessScore = freshnessScore;
+    donation.freshnessBadge = freshnessBadge;
     await donation.save();
 
     res.json({ success: true, donation });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @route  GET /api/donations/accepted
+// For NGOs - every donation THEY accepted (matchedNGO === self), at any
+// stage of the pipeline (matched/assigned/picked_up/in_transit/delivered/
+// verified). Deliberately separate from /available, which only ever
+// returns status:'pending' donations from all donors -- an accepted
+// donation would otherwise have nowhere to persist on the NGO's side.
+exports.getAcceptedDonations = async (req, res) => {
+  try {
+    const ngo = req.user;
+
+    const donations = await Donation.find({ matchedNGO: ngo._id })
+      .populate('donor', 'name phone address')
+      .populate('assignedVolunteer', 'name phone rating isVerified')
+      .sort({ createdAt: -1 });
+
+    const hasNGOLocation = ngo.location?.coordinates?.length === 2;
+    const [ngoLng, ngoLat] = hasNGOLocation ? ngo.location.coordinates : [];
+
+    const enriched = donations.map((d) => {
+      let distance;
+      if (hasNGOLocation && d.location?.coordinates?.length === 2) {
+        const [donLng, donLat] = d.location.coordinates;
+        distance = haversineDistance(ngoLat, ngoLng, donLat, donLng);
+      }
+      return { ...d.toObject(), distance };
+    });
+
+    res.json({ success: true, donations: enriched });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -375,8 +463,7 @@ exports.markRecoveryAction = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-// @route  GET /api/donations/my-accepted  (NGO)
+// @route GET /api/donations/my-accepted  (NGO)
 // Every donation this NGO has accepted, regardless of downstream delivery
 // status — persistent source for the "Accepted Food" sidebar section,
 // survives refresh unlike the old local-only needsVolunteer state.

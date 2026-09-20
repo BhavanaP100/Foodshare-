@@ -16,6 +16,8 @@ export default function AdminDashboard() {
   const [impact, setImpact] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [recoveryDonations, setRecoveryDonations] = useState([]);
+  const [historical, setHistorical] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
 
@@ -24,11 +26,15 @@ export default function AdminDashboard() {
       api.get('/analytics/impact'),
       api.get('/analytics/admin'),
       api.get('/admin/users'),
+      api.get('/donations/all?status=expired&limit=50'),
+      api.get('/analytics/historical'),
     ])
-      .then(([imp, adm, usr]) => {
+      .then(([imp, adm, usr, exp, hist]) => {
         if (imp.data.success) setImpact(imp.data);
         if (adm.data.success) setAdminStats(adm.data);
         if (usr.data.success) setUsers(usr.data.users);
+        if (exp.data.success) setRecoveryDonations(exp.data.donations);
+        if (hist.data.success) setHistorical(hist.data.analysis);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -51,7 +57,7 @@ const verifyVolunteer = async (id) => {
   }
 };
 
-  const TABS = ['overview','users','donations','charts'];
+  const TABS = ['overview','users','donations','charts','history','recovery'];
 
   if (loading) return <DashboardLayout title="Admin Dashboard"><div className="flex justify-center py-24"><Spinner size={12} /></div></DashboardLayout>;
 
@@ -240,6 +246,150 @@ const verifyVolunteer = async (id) => {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      )}
+      {/* History tab (Phase 2 — Historical Impact Analysis) */}
+      {tab === 'history' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+            <h4 style={{ fontFamily: 'Syne', fontWeight: 700, color: '#14532d', fontSize: '0.95rem', marginBottom: 4 }}>
+              Historical Analysis <span className="text-xs font-normal text-gray-400">(Platform-Wide)</span>
+            </h4>
+            <p className="text-xs text-gray-400 mb-4">
+              Rule-based analysis / decision logic over actual donation records across all organizations — not machine
+              learning. Individual donor dashboards show this same analysis scoped to their own organization only.
+              Thresholds are configurable in <code>backend/utils/historicalAnalysis.js</code> and shown next to each
+              recommendation below.
+            </p>
+
+            {!historical && <p className="text-center text-gray-400 text-sm py-8">Loading…</p>}
+
+            {historical?.insufficientData && (
+              <p className="text-center text-gray-400 text-sm py-8">
+                Insufficient historical data to generate a reliable recommendation
+                ({historical.recordCount} of {historical.minimumRequired} minimum donation records collected so far).
+              </p>
+            )}
+
+            {historical && !historical.insufficientData && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                  {historical.recommendations.map((r, i) => (
+                    <div key={i} className="p-4 rounded-xl" style={{ background: '#f0fdf4', border: '1px solid #dcfce7' }}>
+                      <div className="text-sm text-gray-800 mb-1">{r.recommendation}</div>
+                      <div className="text-xs text-gray-400 mb-1">{r.basis}</div>
+                      <div className="text-[11px] text-green-700 font-medium">Rule: {r.rule}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Category Distribution</h5>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {historical.categoryDistribution.map((c) => (
+                          <tr key={c.category} className="border-b border-gray-50">
+                            <td className="py-1.5 capitalize text-gray-700">{c.category}</td>
+                            <td className="py-1.5 text-right text-gray-500">{c.count} ({Math.round(c.share * 100)}%)</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Time-of-Day Distribution</h5>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {historical.timeWindowDistribution.map((w) => (
+                          <tr key={w.key} className="border-b border-gray-50">
+                            <td className="py-1.5 text-gray-700">{w.label}</td>
+                            <td className="py-1.5 text-right text-gray-500">{w.count} ({Math.round(w.share * 100)}%)</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Outcome Breakdown</h5>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        <tr className="border-b border-gray-50"><td className="py-1.5 text-gray-700">Verified (successful)</td><td className="py-1.5 text-right text-gray-500">{historical.outcomeBreakdown.verified}</td></tr>
+                        <tr className="border-b border-gray-50"><td className="py-1.5 text-gray-700">Expired</td><td className="py-1.5 text-right text-gray-500">{historical.outcomeBreakdown.expired}</td></tr>
+                        <tr className="border-b border-gray-50"><td className="py-1.5 text-gray-700">In progress</td><td className="py-1.5 text-right text-gray-500">{historical.outcomeBreakdown.inProgress}</td></tr>
+                        <tr><td className="py-1.5 text-gray-700 font-medium">Success rate (decided donations)</td><td className="py-1.5 text-right text-gray-800 font-medium">{Math.round(historical.outcomeBreakdown.successRate * 100)}%</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Category Expiry Rates (min sample size met)</h5>
+                    {historical.categoryExpiryRates.length === 0 ? (
+                      <p className="text-xs text-gray-400">No category has enough records yet to report individually.</p>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {historical.categoryExpiryRates.map((c) => (
+                            <tr key={c.category} className="border-b border-gray-50">
+                              <td className="py-1.5 capitalize text-gray-700">{c.category}</td>
+                              <td className="py-1.5 text-right text-gray-500">{c.expired}/{c.total} expired ({Math.round(c.expiryRate * 100)}%)</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Recovery tab */}
+      {tab === 'recovery' && (
+        <div className="bg-white rounded-2xl p-5" style={{ border: '1.5px solid #f0fdf4', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontFamily: 'Syne', fontWeight: 700, color: '#14532d', fontSize: '1rem', marginBottom: 4 }}>
+            Recovery Recommendations
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">
+            Donations that could no longer be safely redistributed (freshness fully decayed, or the pickup deadline
+            passed while unclaimed). These are recommendations only — the platform does not physically route food anywhere.
+          </p>
+          {recoveryDonations.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">No donations currently need a recovery recommendation.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-400 text-xs border-b border-gray-100">
+                    <th className="pb-3 font-medium">Food</th>
+                    <th className="pb-3 font-medium">Donor</th>
+                    <th className="pb-3 font-medium">Category</th>
+                    <th className="pb-3 font-medium">Recommended Pathway</th>
+                    <th className="pb-3 font-medium">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recoveryDonations.map(d => (
+                    <tr key={d._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors align-top">
+                      <td className="py-3 font-medium text-gray-800">{d.foodName}</td>
+                      <td className="py-3 text-gray-500">{d.donor?.name}</td>
+                      <td className="py-3 text-gray-500 capitalize">{d.category}</td>
+                      <td className="py-3">
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#fef3c7', color: '#92400e' }}>
+                          ♻️ {d.recoveryOption ? d.recoveryOption.replace('_', ' ') : '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-gray-400 text-xs max-w-xs">{d.recoveryReason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </DashboardLayout>

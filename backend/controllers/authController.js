@@ -49,27 +49,25 @@ exports.register = async (req, res) => {
     const user = await User.create(userData);
     const token = generateToken(user._id);
     res.status(201).json({
-  success: true,
-  token,
-  user: {
-    id: user._id,
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    avatar: user.avatar,
-    phone: user.phone,
-    address: user.address,
-    location: user.location,
-    ngoName: user.ngoName,
-    registrationNumber: user.registrationNumber,
-    capacity: user.capacity,
-    defaultPickupLocation: user.defaultPickupLocation,
-    isAvailable: user.isAvailable,
-  },
-});
-
-   
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        phone: user.phone,
+        address: user.address,
+        location: user.location,
+        ngoName: user.ngoName,
+        registrationNumber: user.registrationNumber,
+        capacity: user.capacity,
+        defaultPickupLocation: user.defaultPickupLocation,
+        isAvailable: user.isAvailable,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -92,31 +90,29 @@ exports.login = async (req, res) => {
     const token = generateToken(user._id);
 
     res.json({
-  success: true,
-  token,
-  user: {
-    id: user._id,
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    avatar: user.avatar,
-    phone: user.phone,
-    address: user.address,
-    location: user.location,
-    ngoName: user.ngoName,
-    registrationNumber: user.registrationNumber,
-    capacity: user.capacity,
-    defaultPickupLocation: user.defaultPickupLocation,
-    isAvailable: user.isAvailable,
-    totalDonations: user.totalDonations,
-    completedDeliveries: user.completedDeliveries,
-    rating: user.rating,
-    badges: user.badges,
-  },
-});
-
-    
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        phone: user.phone,
+        address: user.address,
+        location: user.location,
+        ngoName: user.ngoName,
+        registrationNumber: user.registrationNumber,
+        capacity: user.capacity,
+        defaultPickupLocation: user.defaultPickupLocation,
+        isAvailable: user.isAvailable,
+        totalDonations: user.totalDonations,
+        completedDeliveries: user.completedDeliveries,
+        rating: user.rating,
+        badges: user.badges,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

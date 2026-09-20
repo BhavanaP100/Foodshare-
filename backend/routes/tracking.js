@@ -11,12 +11,14 @@ const {
   getRecommendedVolunteers,
   verifyDelivery,
   getPendingReview,
+  rejectTask,
 } = require('../controllers/trackingController');
 const { protect, authorize } = require('../middleware/auth');
 
 router.get('/recommend/:donationId', protect, authorize('ngo'), getRecommendedVolunteers);
 router.get('/pending-review', protect, authorize('ngo'), getPendingReview);
 router.post('/assign', protect, authorize('ngo'), assignVolunteer);
+router.post('/reject', protect, authorize('volunteer'), rejectTask);
 router.put('/status', protect, authorize('volunteer'), updateStatus);
 router.put('/verify', protect, authorize('ngo'), verifyDelivery);
 router.put('/spoiled', protect, authorize('volunteer'), reportSpoiled);

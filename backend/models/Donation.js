@@ -10,7 +10,7 @@ const donationSchema = new mongoose.Schema(
       required: true,
     },
     isVeg: { type: Boolean, default: true },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: [0.01, 'Quantity must be greater than 0'] },
     quantityUnit: { type: String, enum: ['kg', 'litres', 'servings', 'packets'], default: 'kg' },
     cookedTime: { type: Date, required: true },
     storageCondition: {
@@ -57,6 +57,7 @@ const donationSchema = new mongoose.Schema(
     },
 
     matchedNGO: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    matchedAt: { type: Date }, // when the NGO accepted this donation
     assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     mealsEquivalent: { type: Number, default: 0 },
     co2Saved: { type: Number, default: 0 },
