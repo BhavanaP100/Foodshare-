@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://foodshare-backend-ewq8.onrender.com/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
