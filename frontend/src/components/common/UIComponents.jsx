@@ -207,7 +207,7 @@ export function AcceptedFoodCard({ donation, onAssigned, delay = 0 }) {
     setAssignError('');
     try {
       await api.post('/tracking/assign', { donationId: donation._id, volunteerId });
-      const v = recs?.find((r) => r.volunteer._id === volunteerId)?.volunteer;
+      const v = recs?.find((r) => r._id === volunteerId);
       setShowRecs(false);
       onAssigned?.(donation._id, v);
     } catch (err) {
@@ -313,19 +313,19 @@ export function AcceptedFoodCard({ donation, onAssigned, delay = 0 }) {
             ) : (
               <div className="space-y-2 max-h-56 overflow-y-auto">
                 {recs?.map((r) => (
-                  <div key={r.volunteer._id} className="flex items-center justify-between gap-2 p-2.5 rounded-xl" style={{ background: '#f9fafb' }}>
+                <div key={r._id}className="flex items-center justify-between gap-2 p-2.5 rounded-xl" style={{ background: '#f9fafb' }}>
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-800 truncate">{r.volunteer.name}</div>
-                      <div className="text-xs text-gray-400 truncate">{r.reasons.join(' • ')}</div>
+                      <div className="text-xs font-semibold text-gray-800 truncate">{r.name || 'Unknown Volunteer'}</div>
+                      <div className="text-xs text-gray-400 truncate">📍 {r.distance ?? '—'} km • ⭐ {r.rating?.toFixed?.(1) ?? '—'} • {r.isAvailable ? 'Available' : 'Unavailable'}</div>
                     </div>
                     <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                      disabled={assigningId === r.volunteer._id}
-                      onClick={() => handleAssign(r.volunteer._id)}
+                     disabled={assigningId === r._id}
+                    onClick={() => handleAssign(r._id)}
                       className="text-xs font-medium text-white px-3 py-1.5 rounded-lg flex-shrink-0 disabled:opacity-50"
                       style={{ background: '#22c55e' }}
                     >
-                      {assigningId === r.volunteer._id ? '…' : 'Assign'}
+                      {assigningId === r._id ? '…' : 'Assign'}
                     </motion.button>
                   </div>
                 ))}
