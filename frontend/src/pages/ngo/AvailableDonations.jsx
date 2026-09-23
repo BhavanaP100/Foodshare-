@@ -14,27 +14,22 @@ export default function AvailableDonations() {
   const [filters, setFilters] = useState({ category: '', isVeg: '', maxDistance: '20' });
   const [locationMissing, setLocationMissing] = useState(false);
 
-
-
   const fetch = () => {
-  setLoading(true);
-  setLocationMissing(false);
-  const p = new URLSearchParams();
-  if (filters.category) p.append('category', filters.category);
-  if (filters.isVeg !== '') p.append('isVeg', filters.isVeg);
-  p.append('maxDistance', filters.maxDistance);
+    setLoading(true);
+    setLocationMissing(false);
+    const p = new URLSearchParams(filters);
+    api.get(`/donations/available?${p}`)
+      .then(({ data }) => { if (data.success) setDonations(data.donations); })
+      .catch((err) => {
+        if (err.response?.data?.code === 'NGO_LOCATION_MISSING') setLocationMissing(true);
+        else{
+          alert("unable to load donation ")
+        }
+      })
+      .finally(() => setLoading(false));
+  };
 
-  api.get(`/donations/available?${p}`)
-    .then(({ data }) => { if (data.success) setDonations(data.donations); })
-    .catch((err) => {
-      if (err.response?.data?.code === 'NGO_LOCATION_MISSING') setLocationMissing(true);
-      else{
-        alert("unable to load donation ")
-      }
-    })
-    .finally(() => setLoading(false));
-};
-useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetch(); }, []);
 
   const handleAccept = async (id) => {
     try {

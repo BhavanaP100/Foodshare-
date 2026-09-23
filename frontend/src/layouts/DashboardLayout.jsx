@@ -19,7 +19,6 @@ const NAV_BY_ROLE = {
     { label: 'Impact', icon: FiBarChart2, path: '/impact' },
     { label: 'Late Night', icon: FiMoon, path: '/late-night' },
   ],
-
   ngo: [
     { label: 'Dashboard', icon: FiGrid, path: '/ngo' },
     { label: 'Available Food', icon: FiPackage, path: '/ngo/donations' },

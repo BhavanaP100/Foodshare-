@@ -92,41 +92,6 @@ exports.addDonation = async (req, res) => {
       });
     }
 
-    // Server-side date/quantity sanity checks. These exist independently of
-    // any frontend validation because API requests can bypass the UI.
-    // - quantity must be a positive number (a zero/negative quantity would
-    //   make capacityScore divide-by-zero in the matching algorithm).
-    // - cookedTime cannot be in the future (a small clock-skew tolerance is
-    //   allowed) — otherwise a donor could claim food isn't cooked yet and
-    //   still have it rank as maximally fresh.
-    // - pickupDeadline must be after cookedTime and still in the future at
-    //   creation time — a donation that is already past its own deadline
-    //   the moment it's created isn't meaningful.
-    const parsedQuantity = Number(quantity);
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
-      return res.status(400).json({ success: false, message: 'Quantity must be a positive number.' });
-    }
-
-    const cookedMs = new Date(cookedTime).getTime();
-    const deadlineMs = new Date(pickupDeadline).getTime();
-    const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
-
-    if (!cookedTime || Number.isNaN(cookedMs)) {
-      return res.status(400).json({ success: false, message: 'A valid cooked/prepared time is required.' });
-    }
-    if (cookedMs - Date.now() > CLOCK_SKEW_TOLERANCE_MS) {
-      return res.status(400).json({ success: false, message: 'Cooked/prepared time cannot be in the future.' });
-    }
-    if (!pickupDeadline || Number.isNaN(deadlineMs)) {
-      return res.status(400).json({ success: false, message: 'A valid pickup deadline is required.' });
-    }
-    if (deadlineMs <= cookedMs) {
-      return res.status(400).json({ success: false, message: 'Pickup deadline must be after the cooked/prepared time.' });
-    }
-    if (deadlineMs <= Date.now()) {
-      return res.status(400).json({ success: false, message: 'Pickup deadline must be in the future.' });
-    }
-
     const donationData = {
       donor: req.user._id,
       foodName, category, isVeg, quantity, quantityUnit,
@@ -459,27 +424,6 @@ exports.markRecoveryAction = async (req, res) => {
     await donation.save();
 
     res.json({ success: true, donation });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-};
-// @route GET /api/donations/my-accepted  (NGO)
-// Every donation this NGO has accepted, regardless of downstream delivery
-// status — persistent source for the "Accepted Food" sidebar section,
-// survives refresh unlike the old local-only needsVolunteer state.
-exports.getMyAcceptedDonations = async (req, res) => {
-  try {
-    const donations = await Donation.find({ matchedNGO: req.user._id })
-      .populate('donor', 'name phone address')
-      .populate('assignedVolunteer', 'name phone rating')
-      .sort({ updatedAt: -1 });
-
-    const enriched = donations.map((d) => {
-      const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(d);
-      return { ...d.toObject(), freshnessScore, freshnessBadge, urgencyLevel };
-    });
-
-    res.json({ success: true, donations: enriched });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

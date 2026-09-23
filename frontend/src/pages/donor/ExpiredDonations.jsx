@@ -70,15 +70,9 @@ export default function ExpiredDonations() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-semibold text-sm text-gray-800">{d.foodName}</span>
-                      
-
                       <span className="text-xs text-red-500 font-medium">
-  {d.spoiledStage === 'in_delivery'
-    ? 'Spoiled in transit'
-    : d.spoiledStage === 'awaiting_pickup'
-    ? 'Expired while NGO awaited pickup'
-    : 'Missed pickup'}
-</span>
+                        {d.spoiledStage === 'in_delivery' ? 'Spoiled in transit' : 'Missed pickup'}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-400 mb-3 capitalize">{d.category} • {d.quantity} {d.quantityUnit}</p>
 

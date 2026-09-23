@@ -12,7 +12,6 @@ const {
   getAllDonations,
   getDonationById,
   markRecoveryAction,
-  getMyAcceptedDonations,
 } = require('../controllers/donationController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -26,7 +25,6 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.post('/add', protect, authorize('donor'), upload.array('images', 5), addDonation);
 router.get('/my', protect, authorize('donor'), getMyDonations);
-router.get('/my-accepted', protect, authorize('ngo'), getMyAcceptedDonations);
 router.get('/available', protect, authorize('ngo', 'volunteer'), getAvailableDonations);
 router.get('/accepted', protect, authorize('ngo'), getAcceptedDonations);
 router.get('/late-night', protect, getLateNightDonations);

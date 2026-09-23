@@ -72,13 +72,6 @@ export function FoodCard({ donation, onAccept, showAccept = false, showDistance 
       : `${Math.round(donation.minutesLeft / 60)}h left`
     : null;
 
-  // Freshness only matters while food is still in motion (pending through
-  // in_transit). Once verified, the food has already been safely delivered
-  // and consumed/redistributed — showing a decaying freshness score at that
-  // point is meaningless and confusing (e.g. "Critical (0)" on food that
-  // was successfully donated weeks ago).
-  const showFreshness = donation.status !== 'verified';
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -94,15 +87,9 @@ export function FoodCard({ donation, onAccept, showAccept = false, showDistance 
           {donation.isVeg ? '🥗' : '🍖'}
         </span>
         <div className="absolute top-3 left-3">
-          {showFreshness ? (
-            <FreshnessBadge badge={donation.freshnessBadge} score={donation.freshnessScore} />
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#dcfce7', color: '#15803d' }}>
-              ✓ Delivered Safely
-            </span>
-          )}
+          <FreshnessBadge badge={donation.freshnessBadge} score={donation.freshnessScore} />
         </div>
-        {showFreshness && donation.urgencyLevel === 'critical' && (
+        {donation.urgencyLevel === 'critical' && (
           <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
             URGENT
           </div>
@@ -123,7 +110,7 @@ export function FoodCard({ donation, onAccept, showAccept = false, showDistance 
           {showDistance && donation.distance !== undefined && (
             <span className="flex items-center gap-1">📍 {donation.distance} km away</span>
           )}
-          {showFreshness && timeLeft && (
+          {timeLeft && (
             <span className={`flex items-center gap-1 font-medium ${donation.urgencyLevel === 'critical' ? 'text-red-500' : 'text-amber-600'}`}>
               ⏱ {timeLeft}
             </span>
@@ -247,13 +234,7 @@ export function AcceptedFoodCard({ donation, onAssigned, delay = 0 }) {
           <span className="text-5xl filter drop-shadow-lg">{donation.isVeg ? '🥗' : '🍖'}</span>
         )}
         <div className="absolute top-3 left-3">
-          {donation.status !== 'verified' ? (
-            <FreshnessBadge badge={donation.freshnessBadge} score={donation.freshnessScore} />
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#dcfce7', color: '#15803d' }}>
-              ✓ Delivered Safely
-            </span>
-          )}
+          <FreshnessBadge badge={donation.freshnessBadge} score={donation.freshnessScore} />
         </div>
         <div className="absolute top-3 right-3">
           <StatusBadge status={donation.status} />

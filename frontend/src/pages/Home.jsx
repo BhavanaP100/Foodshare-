@@ -1,11 +1,22 @@
-
 import { useEffect, useRef, useState } from "react";
 import { motion, useAnimation, useInView, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from '../context/AuthContext';
+import {
+  FiMenu,
+  FiX,
+  FiUsers,
+  FiRefreshCw,
+  FiGlobe,
+  FiHeart,
+  FiChevronDown,
+  FiMail,
+  FiCheckCircle,
+} from "react-icons/fi";
+import Globe3D from "../components/common/Globe3D";
+import { useAuth } from "../context/AuthContext";
 // ─── Floating Particle Background ──────────────────────────────────────────
 function ParticleField() {
-  const particles = Array.from({ length: 28 }, (_, i) => ({
+  const particles = Array.from({ length: 16 }, (_, i) => ({
     id: i,
     x: Math.random() * 100,
     y: Math.random() * 100,
@@ -68,21 +79,12 @@ function GlobeHero() {
   ];
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 420, height: 420 }}>
-      {/* Outer glow backdrop */}
-      <div
-        className="absolute"
-        style={{
-          width: 380,
-          height: 380,
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(0,255,180,0.08) 0%, rgba(0,150,255,0.06) 50%, transparent 75%)",
-          filter: "blur(30px)",
-        }}
-      />
-
-      {/* Orbit Ring 1 */}
+    <div
+  className="relative flex items-center justify-center"
+  style={{ width: 420, height: 420, perspective: 1200 }}
+>
+   
+          {/* Orbit Ring 1 */}
       <motion.div
         className="absolute"
         style={{
@@ -91,9 +93,13 @@ function GlobeHero() {
           borderRadius: "50%",
           border: "1.5px solid rgba(0,255,180,0.25)",
           boxShadow: "0 0 20px rgba(0,255,180,0.12)",
+          transformStyle: "preserve-3d",
         }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+        animate={{ rotateY: 360, rotateX: [8, -8, 8] }}
+        transition={{
+          rotateY: { duration: 9, repeat: Infinity, ease: "linear" },
+          rotateX: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+        }}
       >
         {/* Orbit dot */}
         <div
@@ -119,9 +125,10 @@ function GlobeHero() {
           borderRadius: "50%",
           border: "1px solid rgba(0,180,255,0.2)",
           boxShadow: "0 0 15px rgba(0,180,255,0.1)",
-          transform: "rotateX(60deg)",
+          rotateX: 60,
+          transformStyle: "preserve-3d",
         }}
-        animate={{ rotate: -360 }}
+        animate={{ rotateZ: -360 }}
         transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
       >
         <div
@@ -146,60 +153,32 @@ function GlobeHero() {
           height: 390,
           borderRadius: "50%",
           border: "1px solid rgba(255,140,60,0.15)",
-          transform: "rotateX(75deg) rotateZ(30deg)",
+          rotateX: 75,
+          rotateZ: 30,
+          transformStyle: "preserve-3d",
         }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+        animate={{ rotateY: -360 }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
       />
 
-      {/* Globe */}
+  
+      
+
+
+      {/* Globe — real 3D rotating Earth (Three.js) */}
       <motion.div
         style={{
-          width: 210,
-          height: 210,
           borderRadius: "50%",
-          background:
-            "radial-gradient(circle at 38% 35%, rgba(0,255,180,0.18) 0%, rgba(0,80,160,0.85) 45%, rgba(0,20,60,0.97) 80%)",
           boxShadow:
-            "0 0 60px rgba(0,200,255,0.35), 0 0 120px rgba(0,100,200,0.2), inset 0 0 50px rgba(0,255,180,0.08)",
-          border: "1.5px solid rgba(0,255,180,0.22)",
+            "0 0 60px rgba(0,200,255,0.35), 0 0 120px rgba(0,100,200,0.2)",
           position: "relative",
           zIndex: 10,
+          overflow: "hidden",
         }}
         animate={{ y: [-6, 6, -6] }}
         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
       >
-        {/* Globe grid lines */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            backgroundImage: `
-              repeating-linear-gradient(0deg, transparent, transparent 22px, rgba(0,255,180,0.07) 23px),
-              repeating-linear-gradient(90deg, transparent, transparent 22px, rgba(0,255,180,0.07) 23px)
-            `,
-            opacity: 0.7,
-          }}
-        />
-        {/* Globe highlight */}
-        <div
-          style={{
-            position: "absolute",
-            top: "18%",
-            left: "20%",
-            width: "40%",
-            height: "30%",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)",
-            filter: "blur(6px)",
-          }}
-        />
-        {/* Continent blobs */}
-        <div style={{ position: "absolute", top: "28%", left: "22%", width: "28%", height: "20%", borderRadius: "40%", background: "rgba(0,255,150,0.18)", filter: "blur(3px)" }} />
-        <div style={{ position: "absolute", top: "50%", left: "45%", width: "22%", height: "15%", borderRadius: "40%", background: "rgba(0,255,150,0.14)", filter: "blur(3px)" }} />
-        <div style={{ position: "absolute", top: "38%", left: "58%", width: "18%", height: "22%", borderRadius: "40%", background: "rgba(0,255,150,0.12)", filter: "blur(3px)" }} />
+        <Globe3D size={210} />
       </motion.div>
 
       {/* Floating food items */}
@@ -294,9 +273,103 @@ function AnimatedCounter({ target, suffix = "+" }) {
   );
 }
 
+// ─── FAQ List ───────────────────────────────────────────────────────────────
+function FAQList() {
+  const [openIndex, setOpenIndex] = useState(0);
+  const faqs = [
+    { q: "Is FoodShare Nexus free to use?", a: "Yes. Donating food, signing up as a volunteer, or registering an NGO is completely free — there are no listing or matching fees." },
+    { q: "How is food safety handled?", a: "Donors are asked to list preparation time and storage conditions, and NGOs review listings before accepting a pickup. We recommend following local food-safety guidelines when donating perishable items." },
+    { q: "Who can pick up donations?", a: "Verified volunteers and partnered NGOs can claim listings. Every pickup is tracked in real time so donors know exactly where their food ends up." },
+    { q: "What areas are currently supported?", a: "We're expanding city by city, starting with active NGO and volunteer networks. Check the Impact page for the areas currently live." },
+  ];
+
+  return (
+    <div>
+      {faqs.map((item, i) => (
+        <ScrollReveal key={item.q} delay={i * 0.06}>
+          <div
+            className="faq-item"
+            onClick={() => setOpenIndex(openIndex === i ? -1 : i)}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.98rem", color: "#0d1f18" }}>{item.q}</span>
+              <motion.span
+                animate={{ rotate: openIndex === i ? 180 : 0 }}
+                transition={{ duration: 0.25 }}
+                style={{ color: "#00a862", display: "flex" }}
+              >
+                <FiChevronDown size={18} />
+              </motion.span>
+            </div>
+            <AnimatePresence>
+              {openIndex === i && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ color: "#6b8880", fontSize: "0.88rem", lineHeight: 1.7, marginTop: 12, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}
+                >
+                  {item.a}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        </ScrollReveal>
+      ))}
+    </div>
+  );
+}
+
+// ─── Newsletter Form ────────────────────────────────────────────────────────
+function NewsletterForm() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    // TODO: wire this up to a real backend/mailing-list endpoint
+    setSubmitted(true);
+  };
+
+  if (submitted) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "#00ffb4", fontSize: "0.95rem" }}>
+        <FiCheckCircle /> Thanks — you're on the list!
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+      <input
+        type="email"
+        required
+        className="newsletter-input"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        aria-label="Email address"
+      />
+      <motion.button
+        type="submit"
+        className="glow-btn"
+        style={{ padding: "13px 26px" }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.96 }}
+      >
+        Subscribe
+      </motion.button>
+    </form>
+  );
+}
+
 // ─── Main Home Component ────────────────────────────────────────────────────
 export default function Home() {
-  const [lateNightMode, setLateNightMode] = useState(false);
+  const [lateNightMode, setLateNightMode] = useState(
+    () => localStorage.getItem("foodshare-late-night") === "true"
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const navigate = useNavigate();
@@ -312,6 +385,19 @@ export default function Home() {
       setShowAuthPrompt(true);
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem("foodshare-late-night", String(lateNightMode));
+  }, [lateNightMode]);
+
+  // Close mobile menu automatically if the viewport is resized to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 900) setMenuOpen(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
     <div
@@ -457,6 +543,36 @@ export default function Home() {
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #050b14; }
         ::-webkit-scrollbar-thumb { background: rgba(0,200,150,0.25); border-radius: 3px; }
+
+        .faq-item {
+          border-bottom: 1px solid #e8f0eb;
+          padding: 20px 0;
+          cursor: pointer;
+        }
+
+        .newsletter-input {
+          flex: 1 1 260px;
+          padding: 13px 18px;
+          border-radius: 8px;
+          border: 1.5px solid rgba(0,255,180,0.25);
+          background: rgba(255,255,255,0.05);
+          color: #e8f4f0;
+          font-size: 0.92rem;
+          outline: none;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .newsletter-input::placeholder { color: rgba(200,230,220,0.4); }
+        .newsletter-input:focus { border-color: rgba(0,255,180,0.6); }
+
+        @media (max-width: 900px) {
+          .desktop-nav { display: none !important; }
+          .mobile-nav-toggle { display: flex !important; }
+          .step-connector-arrow { display: none !important; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
       `}</style>
 
       {/* ── NAVBAR ─────────────────────────────────────────────────── */}
@@ -493,50 +609,44 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Nav Links */}
-        <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-<div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-  <button
-  className="nav-link"
-  onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
->
-  Home
-</button>
+        {/* Nav Links (desktop only) */}
+        <div className="desktop-nav" style={{ display: "flex", gap: 32, alignItems: "center" }}>
+          <button
+            className="nav-link"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            Home
+          </button>
 
-<button
-  className="nav-link"
-  onClick={() =>
-    document
-      .getElementById("about")
-      ?.scrollIntoView({ behavior: "smooth" })
-  }
->
-  About
-</button>
+          <button
+            className="nav-link"
+            onClick={() =>
+              document.getElementById("about")?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
+            About
+          </button>
 
-<button
-  className="nav-link"
-  onClick={() =>
-    document
-      .getElementById("how-it-works")
-      ?.scrollIntoView({ behavior: "smooth" })
-  }
->
-  How It Works
-</button>
+          <button
+            className="nav-link"
+            onClick={() =>
+              document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
+            How It Works
+          </button>
 
-<Link className="nav-link" to="/impact">
-  Impact
-</Link>
+          <Link className="nav-link" to="/impact">
+            Impact
+          </Link>
 
-<Link className="nav-link" to="/login">
-  Login
-</Link>
-</div>
+          <Link className="nav-link" to="/login">
+            Login
+          </Link>
         </div>
 
-        {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        {/* Right side (desktop only) */}
+        <div className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: 16 }}>
           {/* Late Night Toggle */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: "0.75rem", color: "rgba(200,230,220,0.6)" }}>
@@ -544,6 +654,7 @@ export default function Home() {
             </span>
             <button
               className="toggle-switch"
+              aria-label="Toggle late night mode"
               style={{ background: lateNightMode ? "#00c97a" : "rgba(255,255,255,0.15)" }}
               onClick={() => setLateNightMode(!lateNightMode)}
             >
@@ -558,12 +669,115 @@ export default function Home() {
             className="glow-btn"
             whileHover={{ scale: 1.07 }}
             whileTap={{ scale: 0.96 }}
-              onClick={() => navigate("/register")}
+            onClick={() => navigate("/register")}
           >
             Get Started
           </motion.button>
         </div>
+
+        {/* Hamburger (mobile only) */}
+        <button
+          className="mobile-nav-toggle"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          onClick={() => setMenuOpen((v) => !v)}
+          style={{
+            display: "none",
+            background: "transparent",
+            border: "none",
+            color: "#e8f4f0",
+            fontSize: 26,
+            cursor: "pointer",
+            alignItems: "center",
+          }}
+        >
+          {menuOpen ? <FiX /> : <FiMenu />}
+        </button>
       </motion.nav>
+
+      {/* ── MOBILE NAV PANEL ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            style={{
+              position: "fixed",
+              top: 64,
+              left: 0,
+              right: 0,
+              zIndex: 99,
+              background: "rgba(5,11,20,0.97)",
+              backdropFilter: "blur(18px)",
+              borderBottom: "1px solid rgba(0,255,180,0.1)",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", padding: "16px 5% 24px", gap: 4 }}>
+              {[
+                { label: "Home", action: () => { window.scrollTo({ top: 0, behavior: "smooth" }); setMenuOpen(false); } },
+                { label: "About", action: () => { document.getElementById("about")?.scrollIntoView({ behavior: "smooth" }); setMenuOpen(false); } },
+                { label: "How It Works", action: () => { document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" }); setMenuOpen(false); } },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={item.action}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    color: "rgba(220,240,235,0.85)",
+                    fontSize: "1rem",
+                    textAlign: "left",
+                    padding: "14px 4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <Link
+                to="/impact"
+                onClick={() => setMenuOpen(false)}
+                style={{ color: "rgba(220,240,235,0.85)", fontSize: "1rem", padding: "14px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
+              >
+                Impact
+              </Link>
+              <Link
+                to="/login"
+                onClick={() => setMenuOpen(false)}
+                style={{ color: "rgba(220,240,235,0.85)", fontSize: "1rem", padding: "14px 4px", borderBottom: "1px solid rgba(255,255,255,0.06)", textDecoration: "none" }}
+              >
+                Login
+              </Link>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 4px" }}>
+                <span style={{ fontSize: "0.85rem", color: "rgba(200,230,220,0.6)" }}>
+                  {lateNightMode ? "🌙" : "☀️"} Late Night Mode
+                </span>
+                <button
+                  className="toggle-switch"
+                  aria-label="Toggle late night mode"
+                  style={{ background: lateNightMode ? "#00c97a" : "rgba(255,255,255,0.15)" }}
+                  onClick={() => setLateNightMode(!lateNightMode)}
+                >
+                  <div className="toggle-knob" style={{ left: lateNightMode ? 25 : 3 }} />
+                </button>
+              </div>
+
+              <motion.button
+                className="glow-btn"
+                style={{ marginTop: 12, width: "100%" }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => { setMenuOpen(false); navigate("/register"); }}
+              >
+                Get Started
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── HERO ───────────────────────────────────────────────────── */}
       <section
@@ -590,7 +804,6 @@ export default function Home() {
           {/* Left copy */}
           <div style={{ flex: "1 1 440px", maxWidth: 560 }}>
             <motion.div
-             onClick={() => navigate("/register")}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
@@ -680,6 +893,22 @@ export default function Home() {
             <GlobeHero />
           </motion.div>
         </div>
+      </section>
+
+      {/* ── TRUSTED BY STRIP ───────────────────────────────────────── */}
+      <section style={{ padding: "28px 5%", borderTop: "1px solid rgba(0,255,180,0.06)", borderBottom: "1px solid rgba(0,255,180,0.06)" }}>
+        <ScrollReveal>
+          <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 40, flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.75rem", letterSpacing: "0.12em", color: "rgba(200,230,220,0.45)", fontWeight: 600 }}>
+              TRUSTED BY LOCAL NGOS &amp; FOOD BANKS
+            </span>
+            <div style={{ display: "flex", gap: 32, flexWrap: "wrap", alignItems: "center" }}>
+              {["🏥 Community Health Trust", "🏫 City Food Bank", "🕌 Unity Relief Network", "⛪ Hope Kitchen Collective"].map((org) => (
+                <span key={org} style={{ fontSize: "0.85rem", color: "rgba(200,230,220,0.55)", whiteSpace: "nowrap" }}>{org}</span>
+              ))}
+            </div>
+          </div>
+        </ScrollReveal>
       </section>
 
       {/* ── THREE FEATURE CARDS ─────────────────────────────────────── */}
@@ -800,11 +1029,11 @@ export default function Home() {
                 <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem", margin: 0 }}>Impact Preview</h2>
               </div>
               <button
-  onClick={() => navigate("/impact")}
-  style={{ background: "transparent", border: "1.5px solid rgba(0,255,180,0.3)", color: "#00ffb4", borderRadius: 8, padding: "9px 20px", fontSize: "0.82rem", cursor: "pointer", fontWeight: 600 }}
->
-  View Full Impact →
-</button>
+                onClick={() => navigate("/impact")}
+                style={{ background: "transparent", border: "1.5px solid rgba(0,255,180,0.3)", color: "#00ffb4", borderRadius: 8, padding: "9px 20px", fontSize: "0.82rem", cursor: "pointer", fontWeight: 600 }}
+              >
+                View Full Impact →
+              </button>
             </div>
           </ScrollReveal>
 
@@ -852,14 +1081,16 @@ export default function Home() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 22 }}>
               {[
-                { icon: "👥", title: "Reduce Hunger", desc: "Help feed those who truly need it in your community.", color: "#00a862" },
-                { icon: "♻️", title: "Reduce Waste", desc: "Prevent good food from being wasted every single day.", color: "#0094cc" },
-                { icon: "🌍", title: "Protect Planet", desc: "Lower carbon footprint and build a sustainable future.", color: "#e67e22" },
-                { icon: "🤝", title: "Build Community", desc: "Stronger communities come together to fight hunger.", color: "#9b59b6" },
+                { icon: FiUsers, title: "Reduce Hunger", desc: "Help feed those who truly need it in your community.", color: "#00a862" },
+                { icon: FiRefreshCw, title: "Reduce Waste", desc: "Prevent good food from being wasted every single day.", color: "#0094cc" },
+                { icon: FiGlobe, title: "Protect Planet", desc: "Lower carbon footprint and build a sustainable future.", color: "#e67e22" },
+                { icon: FiHeart, title: "Build Community", desc: "Stronger communities come together to fight hunger.", color: "#9b59b6" },
               ].map((b, i) => (
                 <ScrollReveal key={b.title} delay={i * 0.1}>
                   <div className="benefit-card">
-                    <div style={{ fontSize: 38, marginBottom: 14, filter: `drop-shadow(0 2px 8px ${b.color}40)` }}>{b.icon}</div>
+                    <div style={{ marginBottom: 14, color: b.color, filter: `drop-shadow(0 2px 8px ${b.color}40)` }}>
+                      <b.icon size={34} />
+                    </div>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "1.05rem", color: "#0d1f18", marginBottom: 8 }}>{b.title}</div>
                     <div style={{ color: "#6b8880", fontSize: "0.87rem", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>{b.desc}</div>
                     <div style={{ width: 32, height: 3, background: b.color, borderRadius: 2, marginTop: 16 }} />
@@ -897,7 +1128,7 @@ export default function Home() {
                       <div style={{ color: "#6b8880", fontSize: "0.87rem", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>{s.desc}</div>
                     </div>
                     {i < 2 && (
-                      <div style={{ width: 48, height: 2, background: "linear-gradient(to right, #00a862, #00c8ff)", marginTop: 44, flexShrink: 0 }}>
+                      <div className="step-connector-arrow" style={{ width: 48, height: 2, background: "linear-gradient(to right, #00a862, #00c8ff)", marginTop: 44, flexShrink: 0 }}>
                         <div style={{ textAlign: "center", marginTop: -10, fontSize: 18, color: "#00a862" }}>→</div>
                       </div>
                     )}
@@ -906,6 +1137,38 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </section>
+
+        {/* FAQ */}
+        <section style={{ padding: "80px 5%", background: "#eef5f1" }}>
+          <div style={{ maxWidth: 780, margin: "0 auto" }}>
+            <ScrollReveal>
+              <div style={{ textAlign: "center", marginBottom: 48 }}>
+                <div style={{ fontSize: "0.72rem", letterSpacing: "0.15em", color: "#00a862", marginBottom: 10, fontWeight: 600 }}>GOT QUESTIONS?</div>
+                <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.8rem, 3vw, 2.5rem)", margin: 0, color: "#0d1f18" }}>
+                  Frequently asked questions
+                </h2>
+              </div>
+            </ScrollReveal>
+
+            <FAQList />
+          </div>
+        </section>
+
+        {/* NEWSLETTER */}
+        <section style={{ padding: "70px 5%", background: "#0d2018" }}>
+          <ScrollReveal>
+            <div style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
+              <FiMail size={30} color="#00ffb4" style={{ marginBottom: 14 }} />
+              <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.5rem, 3vw, 2rem)", color: "#e8f4f0", margin: "0 0 10px" }}>
+                Not ready to sign up? Stay in the loop.
+              </h2>
+              <p style={{ color: "rgba(200,230,220,0.6)", fontSize: "0.92rem", marginBottom: 26, fontFamily: "'DM Sans', sans-serif" }}>
+                Get occasional updates on impact milestones and new features.
+              </p>
+              <NewsletterForm />
+            </div>
+          </ScrollReveal>
         </section>
 
         {/* LATE NIGHT MODE CTA */}
@@ -929,16 +1192,14 @@ export default function Home() {
                 <p style={{ color: "rgba(200,230,220,0.65)", fontSize: "0.92rem", lineHeight: 1.75, marginBottom: 24, fontFamily: "'DM Sans', sans-serif" }}>
                   Our late-night access ensures food reaches those who need it anytime. Volunteers and NGOs stay active 24/7 so no surplus is ever wasted.
                 </p>
-             
-
                 <motion.button
                   className="glow-btn"
-                 style={{ fontSize: "0.9rem", padding: "11px 26px" }}
-                   whileHover={{ scale: 1.06 }}
+                  style={{ fontSize: "0.9rem", padding: "11px 26px" }}
+                  whileHover={{ scale: 1.06 }}
                   onClick={goToLateNight}
-                    >
-                   Explore Late Night Access →
-                   </motion.button>
+                >
+                  Explore Late Night Access →
+                </motion.button>
               </div>
             </ScrollReveal>
 
@@ -966,18 +1227,24 @@ export default function Home() {
               © 2026 FoodShare Nexus. Built to feed communities.
             </div>
             <div style={{ display: "flex", gap: 20 }}>
-  {["Privacy", "Terms", "Contact"].map((l) => (
-    <span
-      key={l}
-      style={{
-        color: "rgba(200,230,220,0.4)",
-        fontSize: "0.78rem"
-      }}
-    >
-      {l}
-    </span>
-  ))}
-</div>
+              {[
+                { label: "Privacy", to: "/privacy" },
+                { label: "Terms", to: "/terms" },
+                { label: "Contact", to: "/contact" },
+              ].map((l) => (
+                <Link
+                  key={l.label}
+                  to={l.to}
+                  style={{
+                    color: "rgba(200,230,220,0.4)",
+                    fontSize: "0.78rem",
+                    textDecoration: "none",
+                  }}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
           </div>
         </footer>
       </div>
@@ -989,38 +1256,38 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowAuthPrompt(false)}
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200 }}
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200 }}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               style={{
-                position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                zIndex: 201, background: '#0a0d12', border: '1px solid rgba(0,255,180,0.25)',
-                borderRadius: 20, padding: '32px 28px', width: 340, textAlign: 'center',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                zIndex: 201, background: "#0a0d12", border: "1px solid rgba(0,255,180,0.25)",
+                borderRadius: 20, padding: "32px 28px", width: 340, textAlign: "center",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
               }}
             >
               <div style={{ fontSize: 40, marginBottom: 12 }}>🌙</div>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '1.2rem', color: '#e8f4f0', marginBottom: 8 }}>
+              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.2rem", color: "#e8f4f0", marginBottom: 8 }}>
                 Sign in to continue
               </h3>
-              <p style={{ color: 'rgba(200,230,220,0.6)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 24 }}>
+              <p style={{ color: "rgba(200,230,220,0.6)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: 24 }}>
                 Late Night Rescue needs an account so you can request or claim food safely.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button
                   className="glow-btn"
-                  style={{ width: '100%', padding: '11px 0' }}
-                  onClick={() => navigate('/login', { state: { redirect: '/late-night' } })}
+                  style={{ width: "100%", padding: "11px 0" }}
+                  onClick={() => navigate("/login", { state: { redirect: "/late-night" } })}
                 >
                   Login
                 </button>
                 <button
                   className="outline-btn"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => navigate('/register', { state: { redirect: '/late-night' } })}
+                  style={{ width: "100%", justifyContent: "center" }}
+                  onClick={() => navigate("/register", { state: { redirect: "/late-night" } })}
                 >
                   Sign Up
                 </button>

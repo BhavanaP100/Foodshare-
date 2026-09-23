@@ -11,22 +11,15 @@ const server = http.createServer(app);
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:5173',
-      'https://foodshare-pink-pi.vercel.app',
-    ],
+    origin: 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
 });
 
 // Middleware
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://foodshare-pink-pi.vercel.app',
-  ],
-  credentials: true,
-}));
+app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
