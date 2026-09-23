@@ -150,7 +150,7 @@ export default function NGODashboard() {
   useEffect(() => {
     if (!user?._id) return;
 
-    const socket = io('http://localhost:5000');
+   const socket = io('https://foodshare-backend-ewq8.onrender.com');
 
     socket.emit('join_ngo_room', user._id);
 
@@ -565,10 +565,10 @@ export default function NGODashboard() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
-                    {recommendations[d._id]
-                      .slice(0, 4)
-                      .map((v, idx) => (
-
+                    {(recommendations[d._id] || [])
+  .filter((v) => v && v._id)
+  .slice(0, 4)
+  .map((v, idx) => (
                         <motion.div
                           key={v._id}
                           initial={{
@@ -610,13 +610,13 @@ export default function NGODashboard() {
                           <div className="flex items-center gap-2 mb-2">
 
                             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold flex-shrink-0">
-                              {v.name?.[0]}
+                            {v.name?.charAt(0) || '?'}
                             </div>
 
                             <div className="min-w-0 flex-1">
 
                               <div className="text-xs font-medium text-gray-800 truncate">
-                                {v.name}
+                               {v.name || 'Unknown Volunteer'}
                               </div>
 
                               <div className="flex items-center gap-2 text-xs text-gray-400">
