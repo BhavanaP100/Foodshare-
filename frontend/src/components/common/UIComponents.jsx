@@ -320,12 +320,12 @@ export function AcceptedFoodCard({ donation, onAssigned, delay = 0 }) {
                     </div>
                     <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                      disabled={assigningId === r.volunteer._id}
-                      onClick={() => handleAssign(r.volunteer._id)}
+                     disabled={assigningId === r._id}
+                    onClick={() => handleAssign(r._id)}
                       className="text-xs font-medium text-white px-3 py-1.5 rounded-lg flex-shrink-0 disabled:opacity-50"
                       style={{ background: '#22c55e' }}
                     >
-                      {assigningId === r.volunteer._id ? '…' : 'Assign'}
+                      {assigningId === r._id ? '…' : 'Assign'}
                     </motion.button>
                   </div>
                 ))}
