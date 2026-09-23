@@ -463,3 +463,24 @@ exports.markRecoveryAction = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+// @route GET /api/donations/my-accepted  (NGO)
+// Every donation this NGO has accepted, regardless of downstream delivery
+// status — persistent source for the "Accepted Food" sidebar section,
+// survives refresh unlike the old local-only needsVolunteer state.
+exports.getMyAcceptedDonations = async (req, res) => {
+  try {
+    const donations = await Donation.find({ matchedNGO: req.user._id })
+      .populate('donor', 'name phone address')
+      .populate('assignedVolunteer', 'name phone rating')
+      .sort({ updatedAt: -1 });
+
+    const enriched = donations.map((d) => {
+      const { freshnessScore, freshnessBadge, urgencyLevel } = calculateFreshness(d);
+      return { ...d.toObject(), freshnessScore, freshnessBadge, urgencyLevel };
+    });
+
+    res.json({ success: true, donations: enriched });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

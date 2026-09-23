@@ -74,6 +74,7 @@ const calculateFreshness = (donation) => {
   const quantityPressure = quantity > 50 ? 0.95 : 1.0;
 
   let freshnessScore = Math.max(0, Math.min(100, Math.round((1 - effectiveDecay) * 100 * quantityPressure)));
+  
 
   // Deadline passing is an "overdue for pickup" signal, not a food-safety
   // verdict by itself — a packaged or frozen item can still be perfectly
@@ -307,6 +308,7 @@ const recommendVolunteersForDonation = (donation, volunteerList, maxDistance = 2
       const availabilityBonus = volunteer.isAvailable ? 15 : 0;
 
       const score = Math.round(0.6 * distanceScore + 0.25 * ratingScore + availabilityBonus);
+      
 
       return { volunteer, distance, score: Math.min(100, score) };
     })
